@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 from dataclasses import dataclass
 from pathlib import Path
 import tomllib
@@ -67,12 +68,14 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
 
 
 def build_field_from_config(config: FieldSimConfig) -> WallAwareGaussianField2D:
+    rng = np.random.default_rng(config.seed) if config.seed is not None else None
     return WallAwareGaussianField2D(
         sources=list(config.source_specs),
         walls=list(config.geometry.walls),
         background_level=config.background_level,
         measurement_noise_std=config.measurement_noise_std,
         clip_range=config.clip_range,
+        rng=rng,
         x_range=config.geometry.x_range,
         y_range=config.geometry.y_range,
     )

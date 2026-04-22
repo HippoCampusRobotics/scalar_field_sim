@@ -45,6 +45,8 @@ class FieldVisualizationNode(Node):
         self.source_pub = self.create_publisher(MarkerArray, "field/sources", qos)
 
         grid_step = self.get_parameter("grid_step").get_parameter_value().double_value
+        self.get_logger().info(f"Using grid_step = {grid_step}")
+        
         z_mode = self.get_parameter("z_mode").get_parameter_value().string_value
         height_scale = (
             self.get_parameter("height_scale").get_parameter_value().double_value

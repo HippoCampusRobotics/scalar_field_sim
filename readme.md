@@ -201,7 +201,4 @@ background_floor = 0.0
 measurement_noise_std = 0.0005
 clip_min = 0.0
 clip_max = 0.02
-seed = 1
-
-[visualization]
-grid_step = 0.05
+seed = 42

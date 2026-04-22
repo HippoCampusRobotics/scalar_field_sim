@@ -15,8 +15,10 @@ def generate_launch_description():
                     / "scenarios/simple_field_1.toml"
                 ),
             ),
-            DeclareLaunchArgument("grid_step", default_value="0.05"),
-            DeclareLaunchArgument("z_mode", default_value="flat"),
+            DeclareLaunchArgument("grid_step", default_value="0.01"),
+            DeclareLaunchArgument(
+                "z_mode", default_value="flat"
+            ),  # z_mode="height" is ideal for testing for smoothness
             DeclareLaunchArgument("height_scale", default_value="0.5"),
             Node(
                 package="scalar_field_sim",
