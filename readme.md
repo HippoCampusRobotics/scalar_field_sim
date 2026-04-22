@@ -9,7 +9,6 @@ The package currently provides:
 
 The intended use is to provide a lightweight simulated measurement backend that can later be swapped with the real physical measurement setup while keeping the planner-side interface similar.
 
----
 
 ## Overview
 
@@ -24,7 +23,6 @@ The field consists of:
 
 Only the **x** and **y** coordinates are used for field evaluation.
 
----
 
 ## Mathematical model
 
@@ -109,7 +107,6 @@ $$
 
 The simulator also tracks whether clipping changed the noisy value.
 
----
 
 ### Parameterization of source terms
 
@@ -157,7 +154,6 @@ The visualization node publishes:
 
 The field cloud is published with transient-local durability so RViz can display it even when started after the node.
 
----
 
 ## Scenario configuration
 
