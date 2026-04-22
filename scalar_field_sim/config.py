@@ -21,7 +21,7 @@ class FieldSimConfig:
     frame_id: str
     geometry: ScenarioGeometry
     source_specs: tuple[SimulationSourceSpec, ...]
-    background_floor: float
+    background_level: float
     measurement_noise_std: float
     clip_range: tuple[float, float] | None
     seed: int | None
@@ -41,7 +41,7 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
     source_specs = _parse_source_specs(cfg)
 
     sim_cfg = cfg.get("simulation", {})
-    background_floor = float(sim_cfg.get("background_floor", 0.0))
+    background_level = float(sim_cfg.get("background_level", 0.0))
     measurement_noise_std = float(sim_cfg.get("measurement_noise_std", 0.0))
     clip_range = _parse_clip_range(sim_cfg)
     seed = sim_cfg.get("seed", None)
@@ -58,7 +58,7 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
         frame_id=frame_id,
         geometry=geometry,
         source_specs=source_specs,
-        background_floor=background_floor,
+        background_level=background_level,
         measurement_noise_std=measurement_noise_std,
         clip_range=clip_range,
         seed=seed,
@@ -70,7 +70,7 @@ def build_field_from_config(config: FieldSimConfig) -> WallAwareGaussianField2D:
     return WallAwareGaussianField2D(
         sources=list(config.source_specs),
         walls=list(config.geometry.walls),
-        background_floor=config.background_floor,
+        background_level=config.background_level,
         measurement_noise_std=config.measurement_noise_std,
         clip_range=config.clip_range,
         x_range=config.geometry.x_range,

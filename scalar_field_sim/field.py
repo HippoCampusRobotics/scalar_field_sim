@@ -36,7 +36,7 @@ class WallAwareGaussianField2D:
     """Continuous 2D scalar field with Gaussian-like sources and wall blocking.
 
     The latent field is the sum of source contributions plus a constant background
-    floor. A wall can attenuate a source contribution if the line segment from the
+    level. A wall can attenuate a source contribution if the line segment from the
     source center to the query position intersects the wall segment.
 
     Notes
@@ -51,7 +51,7 @@ class WallAwareGaussianField2D:
         self,
         sources: Sequence[SimulationSourceSpec],
         walls: Sequence[WallSegment] | None = None,
-        background_floor: float = 0.0,
+        background_level: float = 0.0,
         measurement_noise_std: float = 0.0,
         clip_range: tuple[float, float] | None = None,
         rng: np.random.Generator | None = None,
@@ -69,8 +69,8 @@ class WallAwareGaussianField2D:
                 raise ValueError("clip_range bounds must be finite.")
             if clip_range[1] < clip_range[0]:
                 raise ValueError("clip_range must satisfy max >= min.")
-        if not np.isfinite(background_floor):
-            raise ValueError("background_floor must be finite.")
+        if not np.isfinite(background_level):
+            raise ValueError("background_level must be finite.")
         if not np.isfinite(measurement_noise_std):
             raise ValueError("measurement_noise_std must be finite.")
         if measurement_noise_std < 0.0:
@@ -78,7 +78,7 @@ class WallAwareGaussianField2D:
 
         self.sources = tuple(sources)
         self.walls = tuple(walls) if walls is not None else tuple()
-        self.background_floor = float(background_floor)
+        self.background_level = float(background_level)
         self.measurement_noise_std = float(measurement_noise_std)
         self.clip_range = clip_range
         self.rng = np.random.default_rng() if rng is None else rng
@@ -92,7 +92,7 @@ class WallAwareGaussianField2D:
         """
         xy = self._as_xy_array(query_positions)
 
-        latent = np.full(len(xy), self.background_floor, dtype=float)
+        latent = np.full(len(xy), self.background_level, dtype=float)
 
         for src in self.sources:
             center, contribution = self._compute_source_contribution(xy, src)
