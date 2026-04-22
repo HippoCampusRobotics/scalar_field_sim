@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from pathlib import Path
 
 import rclpy
@@ -74,6 +75,13 @@ class FieldServerNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = FieldServerNode()
-    rclpy.spin(node)
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     node.destroy_node()
     rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()
