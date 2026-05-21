@@ -21,7 +21,10 @@
   <depend>sensor_msgs_py</depend>
   <depend>visualization_msgs</depend>
   <depend>scalar_field_interfaces</depend>
-  
+  <depend>nav_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>hippo_common</depend>
+
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <build_type>ament_cmake</build_type>

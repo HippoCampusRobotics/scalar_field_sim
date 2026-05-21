@@ -70,11 +70,13 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   nodes/field_server_node.py
   nodes/field_visualization_node.py
+  nodes/ir_measurement_sim_node.py
+  nodes/periodic_measurement_trigger_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(
-  DIRECTORY launch scenarios
+  DIRECTORY launch scenarios config
   DESTINATION share/${PROJECT_NAME}
 )
 
