@@ -152,7 +152,7 @@ The visualization node publishes:
 - `/field/walls` (`visualization_msgs/msg/MarkerArray`)
 - `/field/sources` (`visualization_msgs/msg/MarkerArray`)
 
-The field cloud is published with transient-local durability so RViz can display it even when started after the node.
+The field cloud is published with transient-local durability. RViz may still require matching QoS settings to receive the retained sample if started after the publisher.
 
 
 ## Scenario configuration
