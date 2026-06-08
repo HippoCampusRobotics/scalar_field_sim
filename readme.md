@@ -40,16 +40,25 @@ $$
 
 amplitude $A_j$, and spreads $\sigma_{x,j}, \sigma_{y,j}$, the unblocked source contribution is
 
+
 ```math
-g_j(\mathbf{x}) =
-A_j \exp\left(
+\begin{aligned}
+g_j(\mathbf{x})
+&=
+A_j
+\exp\left(
 -\frac{1}{2}
 \left[
-\left(\frac{x-c_{x,j}}{\sigma_{x,j}}\right)^2
+\left(
+\frac{x-c_{x,j}}{\sigma_{x,j}}
+\right)^2
 +
-\left(\frac{y-c_{y,j}}{\sigma_{y,j}}\right)^2
+\left(
+\frac{y-c_{y,j}}{\sigma_{y,j}}
+\right)^2
 \right]
 \right).
+\end{aligned}
 ```
 
 ### Wall attenuation
@@ -67,12 +76,12 @@ $$
 $$
 
 So the effective source contribution is
-
 ```math
-\tilde g_j(\mathbf{x}) =
+\tilde{g}_j(\mathbf{x})
+=
 \begin{cases}
-(1-b_j)\, g_j(\mathbf{x}), & \text{if blocked} \\
-g_j(\mathbf{x}), & \text{otherwise.}
+(1-b_j)\, g_j(\mathbf{x}), & \text{if blocked}, \\
+g_j(\mathbf{x}),           & \text{otherwise}.
 \end{cases}
 ```
 
