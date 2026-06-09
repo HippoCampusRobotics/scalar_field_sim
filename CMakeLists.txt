@@ -47,34 +47,17 @@ find_package(scalar_field_interfaces REQUIRED)
 # Install Python modules
 ament_python_install_package(${PROJECT_NAME})
 
-# ################################################################################
-# # obstacle node
-# ################################################################################
-# add_executable(obstacle_node src/obstacle/obstacle_node.cpp)
-# ament_target_dependencies(obstacle_node
-#   rclcpp
-#   hippo_common
-#   std_msgs
-#   geometry_msgs
-#   yaml-cpp
-#   ament_index_cpp
-# )
-# install(
-#   TARGETS obstacle_node
-#   DESTINATION lib/${PROJECT_NAME}
-# )
-
-
-
 # Install Python executables
 install(PROGRAMS
   nodes/field_server_node.py
   nodes/field_visualization_node.py
+  nodes/ir_measurement_sim_node.py
+  nodes/periodic_measurement_trigger_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(
-  DIRECTORY launch scenarios
+  DIRECTORY launch scenarios config
   DESTINATION share/${PROJECT_NAME}
 )
 

@@ -40,17 +40,26 @@ $$
 
 amplitude $A_j$, and spreads $\sigma_{x,j}, \sigma_{y,j}$, the unblocked source contribution is
 
-$$
-g_j(\mathbf{x}) =
-A_j \exp\left(
+
+```math
+\begin{aligned}
+g_j(\mathbf{x})
+&=
+A_j
+\exp\left(
 -\frac{1}{2}
 \left[
-\left(\frac{x-c_{x,j}}{\sigma_{x,j}}\right)^2
+\left(
+\frac{x-c_{x,j}}{\sigma_{x,j}}
+\right)^2
 +
-\left(\frac{y-c_{y,j}}{\sigma_{y,j}}\right)^2
+\left(
+\frac{y-c_{y,j}}{\sigma_{y,j}}
+\right)^2
 \right]
 \right).
-$$
+\end{aligned}
+```
 
 ### Wall attenuation
 
@@ -67,14 +76,14 @@ $$
 $$
 
 So the effective source contribution is
-
-$$
-\tilde g_j(\mathbf{x}) =
+```math
+\tilde{g}_j(\mathbf{x})
+=
 \begin{cases}
-(1-b_j)\, g_j(\mathbf{x}), & \text{if blocked} \\
-g_j(\mathbf{x}), & \text{otherwise.}
+(1-b_j)\, g_j(\mathbf{x}), & \text{if blocked}, \\
+g_j(\mathbf{x}),           & \text{otherwise}.
 \end{cases}
-$$
+```
 
 ### Latent field
 
@@ -152,7 +161,7 @@ The visualization node publishes:
 - `/field/walls` (`visualization_msgs/msg/MarkerArray`)
 - `/field/sources` (`visualization_msgs/msg/MarkerArray`)
 
-The field cloud is published with transient-local durability so RViz can display it even when started after the node.
+The field cloud is published with transient-local durability. RViz may still require matching QoS settings to receive the retained sample if started after the publisher.
 
 
 ## Scenario configuration

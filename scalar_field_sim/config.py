@@ -1,3 +1,9 @@
+"""Load scalar field simulation scenarios from TOML files.
+
+This module parses a TOML scenario description into a typed
+`FieldSimConfig` and builds the corresponding `WallAwareGaussianField2D`.
+"""
+
 from __future__ import annotations
 
 import numpy as np
@@ -18,6 +24,32 @@ from scalar_field_sim.field import (
 
 @dataclass(frozen=True, slots=True)
 class FieldSimConfig:
+    """Configuration for one scalar field simulation scenario.
+
+    Attributes
+    ----------
+    name
+        Human-readable scenario name.
+    frame_id
+        ROS frame in which the field is defined. Should be "map".
+    geometry
+        Rectangular bounds, wall segments, and source positions.
+        See definition in geometry.py.
+    source_specs
+        Source parameters used to construct the simulated field.
+        See definition in field.py.
+    background_level
+        Constant additive background level of the latent field.
+    measurement_noise_std
+        Standard deviation of additive measurement noise.
+    clip_range
+        Optional clipping range applied to sampled measurements.
+    seed
+        Optional random seed for reproducible noisy sampling.
+    visualization_grid_step
+        Optional suggested grid spacing for ground-truth visualization.
+    """
+
     name: str
     frame_id: str
     geometry: ScenarioGeometry
@@ -30,6 +62,16 @@ class FieldSimConfig:
 
 
 def load_field_sim_config(path: str | Path) -> FieldSimConfig:
+    """Parse one TOML scenario file into a `FieldSimConfig`.
+
+    The TOML file defines:
+    - general scenario metadata,
+    - frame id,
+    - rectangular field bounds,
+    - optional walls,
+    - source positions or full source specifications,
+    - simulation parameters such as noise, clipping, and random seed.
+    """
     path = Path(path)
 
     with path.open("rb") as f:
@@ -68,6 +110,8 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
 
 
 def build_field_from_config(config: FieldSimConfig) -> WallAwareGaussianField2D:
+    """Construct a scalar field from a parsed config.
+    See field.py for definition of field object WallAwareGaussianField2D."""
     rng = np.random.default_rng(config.seed) if config.seed is not None else None
     return WallAwareGaussianField2D(
         sources=list(config.source_specs),
@@ -84,12 +128,14 @@ def build_field_from_config(config: FieldSimConfig) -> WallAwareGaussianField2D:
 def load_field_from_toml(
     path: str | Path,
 ) -> tuple[FieldSimConfig, WallAwareGaussianField2D]:
+    """Convenience helper returning both parsed config and constructed field."""
     config = load_field_sim_config(path)
     field = build_field_from_config(config)
     return config, field
 
 
 def _parse_geometry(cfg: dict, default_name: str) -> ScenarioGeometry:
+    """Parse bounds, walls, and source positions into `ScenarioGeometry`."""
     bounds_cfg = cfg["bounds"]
     x_range = (float(bounds_cfg["x_min"]), float(bounds_cfg["x_max"]))
     y_range = (float(bounds_cfg["y_min"]), float(bounds_cfg["y_max"]))
@@ -109,6 +155,7 @@ def _parse_geometry(cfg: dict, default_name: str) -> ScenarioGeometry:
 
 
 def _parse_walls(walls_cfg: dict) -> tuple[WallSegment, ...]:
+    """Parse wall segments from `objects.walls.wall_vertices`."""
     wall_vertices = walls_cfg.get("wall_vertices", [])
     walls: list[WallSegment] = []
 
@@ -122,6 +169,7 @@ def _parse_walls(walls_cfg: dict) -> tuple[WallSegment, ...]:
 
 
 def _parse_source_geometry(sources_cfg: dict) -> tuple[SourceGeometry, ...]:
+    """Parse source positions used for geometry/visualization only."""
     sources: list[SourceGeometry] = []
 
     if "source_specs" in sources_cfg:
@@ -146,6 +194,7 @@ def _parse_source_geometry(sources_cfg: dict) -> tuple[SourceGeometry, ...]:
 
 
 def _parse_source_specs(cfg: dict) -> tuple[SimulationSourceSpec, ...]:
+    """Parse source parameters used to construct the simulated field."""
     sources_cfg = cfg.get("objects", {}).get("sources", {})
 
     if "source_specs" in sources_cfg:
@@ -200,6 +249,7 @@ def _parse_source_specs(cfg: dict) -> tuple[SimulationSourceSpec, ...]:
 
 
 def _parse_clip_range(sim_cfg: dict) -> tuple[float, float] | None:
+    """Parse optional measurement clipping limits."""
     clip_min = sim_cfg.get("clip_min", None)
     clip_max = sim_cfg.get("clip_max", None)
 
