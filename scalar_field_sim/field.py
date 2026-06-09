@@ -1,3 +1,12 @@
+"""Scalar field model for simulation scenarios.
+
+This module defines:
+- source parameter containers,
+- a continuous 2D scalar field with optional wall blocking,
+- helper functions for grid generation and segment intersection,
+- a helper to build simulation source specifications from scenario geometry.
+"""
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Sequence
 import numpy as np
@@ -8,6 +17,27 @@ from scalar_field_sim.geometry import WallSegment, ScenarioGeometry
 
 @dataclass(frozen=True, slots=True)
 class SimulationSourceSpec:
+    """Parameters of one simulated scalar field source.
+
+    Attributes
+    ----------
+    center
+        Source center position as (x, y).
+    amplitude
+        Peak amplitude of the source contribution.
+    sigma_x
+        Standard deviation in x direction.
+    sigma_y
+        Standard deviation in y direction.
+    blocking_strength
+        Attenuation factor applied when a wall blocks line of sight.
+        - 0.0 means no attenuation
+        - 1.0 means full blocking
+    name
+        Optional source name for debugging or visualization.
+        Currently not used.
+    """
+
     center: tuple[float, float]
     amplitude: float
     sigma_x: float
@@ -16,6 +46,10 @@ class SimulationSourceSpec:
     name: str | None = None
 
     def __post_init__(self):
+        if len(self.center) != 2:
+            raise ValueError("Source center must have length 2.")
+        if not np.all(np.isfinite(self.center)):
+            raise ValueError("Source center must contain finite coordinates.")
         if self.sigma_x <= 0 or self.sigma_y <= 0:
             raise ValueError("sigma_x and sigma_y must be positive.")
         if self.amplitude < 0.0:
@@ -28,8 +62,6 @@ class SimulationSourceSpec:
             raise ValueError("sigma_x and sigma_y must be finite.")
         if not np.isfinite(self.blocking_strength):
             raise ValueError("blocking_strength must be finite.")
-        if not np.all(np.isfinite(self.center)):
-            raise ValueError("Source center must contain finite coordinates.")
 
 
 class WallAwareGaussianField2D:
@@ -44,7 +76,7 @@ class WallAwareGaussianField2D:
     - `evaluate(...)` returns latent, deterministic field values.
     - `sample(...)` adds measurement noise and optional clipping.
     - Query positions may be shaped `(N, 2)`, `(N, 3)`, `(2,)`, or `(3,)`.
-      Only the first two coordinates are used.
+      Only the first two coordinates (assumed to be x and y) are used.
     """
 
     def __init__(
@@ -114,7 +146,7 @@ class WallAwareGaussianField2D:
 
     def evaluate_at_position(self, query_position) -> float:
         """
-        Convenience wrapper for a single position.
+        Convenience wrapper for evaluating field at a single position.
         """
         latent = self.evaluate(np.asarray(query_position, dtype=float).reshape(1, -1))
         return float(latent[0])

@@ -77,7 +77,6 @@ def create_periodic_measurement_trigger_node():
                 'use_sim_time': LaunchConfiguration('use_sim_time'),
                 'period_sec': 2.0,
                 'wait_for_service_timeout_sec': 1.0,
-                'start_immediately': True,
             }
         ],
         output='screen',

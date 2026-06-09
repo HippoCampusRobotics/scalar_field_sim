@@ -25,6 +25,9 @@
   <depend>std_srvs</depend>
   <depend>hippo_common</depend>
 
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>scalar_field_belief</exec_depend>
+  
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <build_type>ament_cmake</build_type>

@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
-from typing import Optional
-
 import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 
 
 class PeriodicMeasurementTriggerNode(Node):
-    """
-    Periodically call the trigger_ir_measurement service.
+    """Periodically trigger one simulated measurement.
 
-    This is only a simple helper. In the final system,
-    the planner node should call the trigger service instead.
+    This node is only a simple test helper for the simulation setup.
+    It repeatedly calls the `trigger_ir_measurement` service and does not
+    make any planning decisions itself.
+
+    In the final system, the planner should decide when a new measurement
+    is needed and call the trigger service directly.
     """
 
     def __init__(self) -> None:
@@ -22,7 +22,6 @@ class PeriodicMeasurementTriggerNode(Node):
         self.declare_parameter("trigger_service_name", "trigger_ir_measurement")
         self.declare_parameter("period_sec", 2.0)
         self.declare_parameter("wait_for_service_timeout_sec", 1.0)
-        self.declare_parameter("start_immediately", True)
 
         self._trigger_service_name = str(
             self.get_parameter("trigger_service_name").value
@@ -31,7 +30,6 @@ class PeriodicMeasurementTriggerNode(Node):
         self._wait_for_service_timeout_sec = float(
             self.get_parameter("wait_for_service_timeout_sec").value
         )
-        self._start_immediately = bool(self.get_parameter("start_immediately").value)
 
         if self._period_sec <= 0.0:
             raise ValueError("period_sec must be positive.")
@@ -39,8 +37,10 @@ class PeriodicMeasurementTriggerNode(Node):
             raise ValueError("wait_for_service_timeout_sec must be positive.")
 
         self._client = self.create_client(Trigger, self._trigger_service_name)
+
+        # Prevent overlapping service calls if one trigger request has not
+        # returned yet.
         self._request_in_flight = False
-        self._timer: Optional[rclpy.timer.Timer] = None
 
         self._timer = self.create_timer(self._period_sec, self._on_timer)
 
@@ -50,9 +50,6 @@ class PeriodicMeasurementTriggerNode(Node):
             f"period_sec={self._period_sec:.3f}."
         )
 
-        if self._start_immediately:
-            self._on_timer()
-
     def _on_timer(self) -> None:
         if self._request_in_flight:
             self.get_logger().warning(
@@ -60,9 +57,7 @@ class PeriodicMeasurementTriggerNode(Node):
             )
             return
 
-        if not self._client.wait_for_service(
-            timeout_sec=self._wait_for_service_timeout_sec
-        ):
+        if not self._client.service_is_ready():
             self.get_logger().warning(
                 f"Trigger service '{self._trigger_service_name}' not available yet."
             )
