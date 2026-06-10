@@ -6,13 +6,16 @@ This module defines:
 - helper functions for grid generation and segment intersection,
 - a helper to build simulation source specifications from scenario geometry.
 """
+
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Sequence
+
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from scalar_field_sim.geometry import WallSegment, ScenarioGeometry
+from scalar_field_sim.geometry import ScenarioGeometry, WallSegment
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,21 +50,21 @@ class SimulationSourceSpec:
 
     def __post_init__(self):
         if len(self.center) != 2:
-            raise ValueError("Source center must have length 2.")
+            raise ValueError('Source center must have length 2.')
         if not np.all(np.isfinite(self.center)):
-            raise ValueError("Source center must contain finite coordinates.")
+            raise ValueError('Source center must contain finite coordinates.')
         if self.sigma_x <= 0 or self.sigma_y <= 0:
-            raise ValueError("sigma_x and sigma_y must be positive.")
+            raise ValueError('sigma_x and sigma_y must be positive.')
         if self.amplitude < 0.0:
-            raise ValueError("Source amplitude must be non-negative.")
+            raise ValueError('Source amplitude must be non-negative.')
         if not (0.0 <= self.blocking_strength <= 1.0):
-            raise ValueError("blocking_strength must be between 0.0 and 1.0.")
+            raise ValueError('blocking_strength must be between 0.0 and 1.0.')
         if not np.isfinite(self.amplitude):
-            raise ValueError("Source amplitude must be finite.")
+            raise ValueError('Source amplitude must be finite.')
         if not np.isfinite(self.sigma_x) or not np.isfinite(self.sigma_y):
-            raise ValueError("sigma_x and sigma_y must be finite.")
+            raise ValueError('sigma_x and sigma_y must be finite.')
         if not np.isfinite(self.blocking_strength):
-            raise ValueError("blocking_strength must be finite.")
+            raise ValueError('blocking_strength must be finite.')
 
 
 class WallAwareGaussianField2D:
@@ -91,22 +94,22 @@ class WallAwareGaussianField2D:
         y_range: tuple[float, float] = (0.0, 4.0),
     ) -> None:
 
-        _validate_range(x_range, name="x_range")
-        _validate_range(y_range, name="y_range")
+        _validate_range(x_range, name='x_range')
+        _validate_range(y_range, name='y_range')
 
         if clip_range is not None:
             if len(clip_range) != 2:
-                raise ValueError("clip_range must be a tuple (min, max).")
+                raise ValueError('clip_range must be a tuple (min, max).')
             if not np.isfinite(clip_range[0]) or not np.isfinite(clip_range[1]):
-                raise ValueError("clip_range bounds must be finite.")
+                raise ValueError('clip_range bounds must be finite.')
             if clip_range[1] < clip_range[0]:
-                raise ValueError("clip_range must satisfy max >= min.")
+                raise ValueError('clip_range must satisfy max >= min.')
         if not np.isfinite(background_level):
-            raise ValueError("background_level must be finite.")
+            raise ValueError('background_level must be finite.')
         if not np.isfinite(measurement_noise_std):
-            raise ValueError("measurement_noise_std must be finite.")
+            raise ValueError('measurement_noise_std must be finite.')
         if measurement_noise_std < 0.0:
-            raise ValueError("measurement_noise_std must be non-negative.")
+            raise ValueError('measurement_noise_std must be non-negative.')
 
         self.sources = tuple(sources)
         self.walls = tuple(walls) if walls is not None else tuple()
@@ -148,7 +151,9 @@ class WallAwareGaussianField2D:
         """
         Convenience wrapper for evaluating field at a single position.
         """
-        latent = self.evaluate(np.asarray(query_position, dtype=float).reshape(1, -1))
+        latent = self.evaluate(
+            np.asarray(query_position, dtype=float).reshape(1, -1)
+        )
         return float(latent[0])
 
     def sample(
@@ -181,7 +186,9 @@ class WallAwareGaussianField2D:
         noisy = latent.copy()
 
         if self.measurement_noise_std > 0.0:
-            noisy += self.rng.normal(0.0, self.measurement_noise_std, size=len(noisy))
+            noisy += self.rng.normal(
+                0.0, self.measurement_noise_std, size=len(noisy)
+            )
 
         unclipped = noisy.copy()
         if self.clip_range is not None:
@@ -262,11 +269,11 @@ class WallAwareGaussianField2D:
 
         if xy.ndim != 2 or xy.shape[1] not in (2, 3):
             raise ValueError(
-                "query_positions must have shape (N,2) or (N,3), (2,) or (3,)."
+                'query_positions must have shape (N,2) or (N,3), (2,) or (3,).'
             )
         if not np.all(np.isfinite(xy[:, :2])):
             raise ValueError(
-                "query_positions must contain only finite x/y coordinates."
+                'query_positions must contain only finite x/y coordinates.'
             )
         return xy[:, :2]
 
@@ -337,20 +344,20 @@ class WallAwareGaussianField2D:
 def _validate_range(value_range: tuple[float, float], name: str) -> None:
     """Validate a numeric interval (min, max)."""
     if len(value_range) != 2:
-        raise ValueError(f"{name} must be a tuple (min, max).")
+        raise ValueError(f'{name} must be a tuple (min, max).')
     lo, hi = value_range
     if not np.isfinite(lo) or not np.isfinite(hi):
-        raise ValueError(f"{name} bounds must be finite.")
+        raise ValueError(f'{name} bounds must be finite.')
     if hi <= lo:
-        raise ValueError(f"{name} must satisfy max > min.")
+        raise ValueError(f'{name} must satisfy max > min.')
 
 
 def _make_axis(start: float, stop: float, step: float) -> np.ndarray:
     """Create a 1D axis including the end point."""
     if stop <= start:
-        raise ValueError("Axis stop must be larger than start.")
+        raise ValueError('Axis stop must be larger than start.')
     if step <= 0:
-        raise ValueError("Step size must be positive.")
+        raise ValueError('Step size must be positive.')
 
     n_full_steps = int(np.floor((stop - start) / step))
     axis = start + step * np.arange(n_full_steps + 1)
@@ -393,7 +400,7 @@ def _segment_intersection_mask(
         If shapes are incompatible or eps <= 0
     """
     if eps <= 0.0 or not np.isfinite(eps):
-        raise ValueError("eps must be a positive finite number.")
+        raise ValueError('eps must be a positive finite number.')
 
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
@@ -401,11 +408,11 @@ def _segment_intersection_mask(
     d = np.asarray(d, dtype=float)
 
     if a.shape != b.shape:
-        raise ValueError("a and b must have the same shape.")
+        raise ValueError('a and b must have the same shape.')
     if a.ndim != 2 or a.shape[1] != 2:
-        raise ValueError("a and b must have shape (N, 2).")
+        raise ValueError('a and b must have shape (N, 2).')
     if c.shape != (2,) or d.shape != (2,):
-        raise ValueError("c and d must have shape (2,).")
+        raise ValueError('c and d must have shape (2,).')
 
     r = b - a
     s = d - c
@@ -435,17 +442,17 @@ def build_simulation_sources(
 ) -> list[SimulationSourceSpec]:
     """Build one `SimulationSourceSpec` per scenario source."""
     if not np.isfinite(amplitude):
-        raise ValueError("amplitude must be finite.")
+        raise ValueError('amplitude must be finite.')
     if amplitude < 0.0:
-        raise ValueError("amplitude must be non-negative.")
+        raise ValueError('amplitude must be non-negative.')
     if not np.isfinite(sigma_x) or not np.isfinite(sigma_y):
-        raise ValueError("sigma_x and sigma_y must be finite.")
+        raise ValueError('sigma_x and sigma_y must be finite.')
     if sigma_x <= 0.0 or sigma_y <= 0.0:
-        raise ValueError("sigma_x and sigma_y must be positive.")
+        raise ValueError('sigma_x and sigma_y must be positive.')
     if not np.isfinite(blocking_strength):
-        raise ValueError("blocking_strength must be finite.")
+        raise ValueError('blocking_strength must be finite.')
     if not (0.0 <= blocking_strength <= 1.0):
-        raise ValueError("blocking_strength must lie in [0.0, 1.0].")
+        raise ValueError('blocking_strength must lie in [0.0, 1.0].')
 
     return [
         SimulationSourceSpec(

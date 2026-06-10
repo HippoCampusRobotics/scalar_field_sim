@@ -1,14 +1,16 @@
-from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
+from visualization_msgs.msg import Marker, MarkerArray
 
 from scalar_field_sim.geometry import ScenarioGeometry
 
 
-def make_wall_markers(scenario: ScenarioGeometry, frame_id: str, stamp) -> MarkerArray:
+def make_wall_markers(
+    scenario: ScenarioGeometry, frame_id: str, stamp
+) -> MarkerArray:
     marker = Marker()
     marker.header.frame_id = frame_id
     marker.header.stamp = stamp
-    marker.ns = "walls"
+    marker.ns = 'walls'
     marker.id = 0
     marker.type = Marker.LINE_LIST
     marker.action = Marker.ADD
@@ -37,7 +39,7 @@ def make_source_markers(
         marker = Marker()
         marker.header.frame_id = frame_id
         marker.header.stamp = stamp
-        marker.ns = "sources"
+        marker.ns = 'sources'
         marker.id = i
         marker.type = Marker.SPHERE
         marker.action = Marker.ADD

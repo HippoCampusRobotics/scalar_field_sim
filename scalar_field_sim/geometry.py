@@ -7,9 +7,9 @@ These dataclasses describe the static geometric parts of a scenario:
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from math import isfinite
-
 
 Point2D = tuple[float, float]
 
@@ -17,20 +17,24 @@ Point2D = tuple[float, float]
 def _validate_point2d(name: str, point: Point2D) -> None:
     """Validate that a 2D point contains two finite coordinates."""
     if len(point) != 2:
-        raise ValueError(f"{name} must have length 2, got {point}.")
+        raise ValueError(f'{name} must have length 2, got {point}.')
     if not all(isfinite(v) for v in point):
-        raise ValueError(f"{name} must contain only finite values, got {point}.")
+        raise ValueError(
+            f'{name} must contain only finite values, got {point}.'
+        )
 
 
 def _validate_range(name: str, value_range: tuple[float, float]) -> None:
     """Validate that a numeric interval is finite and ordered."""
     if len(value_range) != 2:
-        raise ValueError(f"{name} must have length 2, got {value_range}.")
+        raise ValueError(f'{name} must have length 2, got {value_range}.')
     v_min, v_max = value_range
     if not isfinite(v_min) or not isfinite(v_max):
-        raise ValueError(f"{name} must contain finite values, got {value_range}.")
+        raise ValueError(
+            f'{name} must contain finite values, got {value_range}.'
+        )
     if v_min > v_max:
-        raise ValueError(f"{name} must satisfy min <= max, got {value_range}.")
+        raise ValueError(f'{name} must satisfy min <= max, got {value_range}.')
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,8 +53,8 @@ class WallSegment:
     end: Point2D
 
     def __post_init__(self) -> None:
-        _validate_point2d("WallSegment.start", self.start)
-        _validate_point2d("WallSegment.end", self.end)
+        _validate_point2d('WallSegment.start', self.start)
+        _validate_point2d('WallSegment.end', self.end)
 
     def as_tuple(self) -> tuple[Point2D, Point2D]:
         return self.start, self.end
@@ -72,7 +76,7 @@ class SourceGeometry:
     name: str | None = None
 
     def __post_init__(self) -> None:
-        _validate_point2d("SourceGeometry.position", self.position)
+        _validate_point2d('SourceGeometry.position', self.position)
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,8 +104,8 @@ class ScenarioGeometry:
     sources: tuple[SourceGeometry, ...]
 
     def __post_init__(self) -> None:
-        _validate_range("ScenarioGeometry.x_range", self.x_range)
-        _validate_range("ScenarioGeometry.y_range", self.y_range)
+        _validate_range('ScenarioGeometry.x_range', self.x_range)
+        _validate_range('ScenarioGeometry.y_range', self.y_range)
 
     @property
     def num_walls(self) -> int:
@@ -132,11 +136,11 @@ class WallGeometry:
     walls: tuple[WallSegment, ...]
 
     def __post_init__(self) -> None:
-        _validate_range("WallGeometry.x_range", self.x_range)
-        _validate_range("WallGeometry.y_range", self.y_range)
+        _validate_range('WallGeometry.x_range', self.x_range)
+        _validate_range('WallGeometry.y_range', self.y_range)
 
     @classmethod
-    def from_scenario(cls, scenario: ScenarioGeometry) -> "WallGeometry":
+    def from_scenario(cls, scenario: ScenarioGeometry) -> 'WallGeometry':
         return cls(
             name=scenario.name,
             x_range=scenario.x_range,

@@ -1,19 +1,24 @@
 from ament_index_python import get_package_share_path
 from hippo_common import launch_helper
 from hippo_common.launch_helper import LaunchArgsDict
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.actions import Node
-
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    GroupAction,
+    IncludeLaunchDescription,
+)
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 
 def declare_launch_args(launch_description: LaunchDescription):
     scalar_field_sim_pkg_path = get_package_share_path('scalar_field_sim')
     scalar_field_belief_pkg_path = get_package_share_path('scalar_field_belief')
 
-    scenario_path = str(scalar_field_sim_pkg_path / 'scenarios/simple_field_1.toml')
+    scenario_path = str(
+        scalar_field_sim_pkg_path / 'scenarios/simple_field_1.toml'
+    )
     belief_params_file = str(
         scalar_field_belief_pkg_path / 'config/belief_params_default.yaml'
     )
