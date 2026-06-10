@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 
@@ -90,10 +91,12 @@ def main(args=None) -> None:
     node = PeriodicMeasurementTriggerNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    node.destroy_node()
-    rclpy.shutdown()
+    finally:
+        if node is not None:
+            node.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

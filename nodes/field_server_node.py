@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 
 from scalar_field_interfaces.srv import SampleScalarField
@@ -111,10 +112,12 @@ def main(args=None):
     node = FieldServerNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    node.destroy_node()
-    rclpy.shutdown()
+    finally:
+        if node is not None:
+            node.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

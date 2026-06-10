@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 from rcl_interfaces.msg import SetParametersResult
@@ -237,10 +238,13 @@ def main(args=None):
     node = FieldVisualizationNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    node.destroy_node()
-    rclpy.shutdown()
+    finally:
+        if node is not None:
+            node.destroy_node()
+        rclpy.try_shutdown()
+
 
 
 if __name__ == "__main__":

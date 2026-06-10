@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from scalar_field_interfaces.msg import ScalarMeasurement
@@ -258,13 +259,12 @@ def main(args=None) -> None:
 
     try:
         executor.spin()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        executor.shutdown()
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if node is not None:
+            node.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":
