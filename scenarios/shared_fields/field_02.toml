@@ -1,5 +1,5 @@
 [general]
-name = "simple_field_1"
+name = "field_02"
 
 [frame]
 frame_id = "map"
@@ -10,23 +10,30 @@ x_max = 2.0
 y_min = 0.0
 y_max = 4.0
 
-# [objects.walls]
-# wall_vertices = [[1.0, 0.6, 1.0, 3.4], [1.0, 2.1, 1.5, 2.1]]
-
 [objects.sources]
-source_positions = [[1.2, 2.0]]
+source_positions = [
+    [1.658, 0.769],
+    [1.655, 1.349],
+    [0.888, 3.134],
+    [0.867, 2.172],
+    [0.31, 2.877],
+    [1.056, 1.411],
+    [1.421, 1.319],
+    [0.932, 0.734],
+    [0.859, 0.974],
+    [0.653, 2.866],
+    [0.679, 1.949],
+    [1.702, 3.597],
+]
 
 [simulation.source_defaults]
 amplitude = 0.011
 sigma_x = 0.18
 sigma_y = 0.18
-# optional
 blocking_strength = 1.0
 
 [simulation]
-background_floor = 0.0
 measurement_noise_std = 0.0005
 clip_min = 0.0
 clip_max = 0.02
-seed = 42
-
+seed = 43
