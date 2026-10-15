@@ -38,5 +38,5 @@ blocking_strength = 1.0
 [simulation]
 measurement_noise_std = 0.0005
 clip_min = 0.0
-clip_max = 0.02
+clip_max = 0.05
 seed = 44
