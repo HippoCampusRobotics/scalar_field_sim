@@ -1,0 +1,42 @@
+[general]
+name = "field_01_mult_1.5"
+
+[frame]
+frame_id = "map"
+
+[bounds]
+x_min = 0.0
+x_max = 2.0
+y_min = 0.0
+y_max = 4.0
+
+[objects.sources]
+source_positions = [
+    [0.664, 0.412],
+    [0.294, 3.084],
+    [1.603, 2.369],
+    [1.335, 2.151],
+    [1.635, 3.093],
+    [0.274, 3.237],
+    [0.319, 2.795],
+    [0.526, 3.257],
+    [1.061, 1.307],
+    [0.887, 0.368],
+    [0.451, 2.59],
+    [1.215, 2.399],
+    [0.83, 3.72],
+    [1.702, 2.642],
+    [1.22, 2.652],
+]
+
+[simulation.source_defaults]
+amplitude = 0.011
+sigma_x = 0.27
+sigma_y = 0.27
+blocking_strength = 1.0
+
+[simulation]
+measurement_noise_std = 0.0005
+clip_min = 0.0
+clip_max = 0.05
+seed = 42
