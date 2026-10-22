@@ -1,0 +1,45 @@
+# Shared field parameters for the scenarios in this folder.
+# Referenced by 00_open.toml, 01_single_wall.toml, and 02_wall_with_gap.toml
+# via `field_file = "general_params.toml"`. Must not contain [general],
+# [objects.walls], or field_file; those belong in the scenario files.
+
+[frame]
+frame_id = "map"
+
+[units]
+length = "m"
+# IR-derived scalar measurement value; the latent field before noise.
+field_value = "V"
+
+[bounds]
+x_min = 0.0
+x_max = 2.0
+y_min = 0.0
+y_max = 4.0
+
+# Hidden ground-truth source positions, used only by the field generator.
+[objects.sources]
+source_positions = [
+    [0.70, 2.00],
+    [0.45, 0.90],
+    [1.45, 3.00],
+    [0.40, 3.30],
+]
+
+[simulation.source_defaults]
+amplitude = 0.011
+sigma_x = 0.35
+sigma_y = 0.35
+blocking_strength = 1.0
+
+# Noise and clipping affect only field.sample(); the visualization uses the
+# noiseless field.evaluate().
+[simulation]
+background_level = 0.0
+measurement_noise_std = 0.0
+clip_min = 0.0
+clip_max = 0.05
+seed = 42
+
+[visualization]
+grid_step = 0.01

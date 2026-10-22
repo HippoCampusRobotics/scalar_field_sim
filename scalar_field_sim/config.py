@@ -2,6 +2,12 @@
 
 This module parses a TOML scenario description into a typed
 `FieldSimConfig` and builds the corresponding `WallAwareGaussianField2D`.
+
+A scenario file either defines all tables inline or references one shared
+field parameter file via the top-level key `field_file`. In the latter case
+the scenario file may only contain `field_file`, `[general]`, and
+`[objects.walls]`; everything else comes from the shared file. References
+are resolved relative to the scenario file and are not recursive.
 """
 
 from __future__ import annotations
@@ -49,6 +55,12 @@ class FieldSimConfig:
         Optional random seed for reproducible noisy sampling.
     visualization_grid_step
         Optional suggested grid spacing for ground-truth visualization.
+    field_value_unit
+        Optional unit of the field values, from `[units] field_value`.
+    description
+        Optional scenario description, from `[general] description`.
+    field_file
+        Resolved path of the shared field parameter file, if referenced.
     """
 
     name: str
@@ -60,6 +72,9 @@ class FieldSimConfig:
     clip_range: tuple[float, float] | None
     seed: int | None
     visualization_grid_step: float | None = None
+    field_value_unit: str | None = None
+    description: str | None = None
+    field_file: Path | None = None
 
 
 def load_field_sim_config(path: str | Path) -> FieldSimConfig:
@@ -72,13 +87,33 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
     - optional walls,
     - source positions or full source specifications,
     - simulation parameters such as noise, clipping, and random seed.
+
+    If the top-level key `field_file` is present, all tables except
+    `[general]` and `[objects.walls]` are read from that shared file instead,
+    see `_combine_with_field_file`.
+
+    Raises
+    ------
+    ValueError
+        If inline and referenced field definitions conflict, if `field_file`
+        references are nested, or if the shared file is not valid TOML.
+    FileNotFoundError
+        If the referenced shared field file does not exist.
     """
     path = Path(path)
 
     with path.open('rb') as f:
         cfg = tomllib.load(f)
 
-    name = cfg.get('general', {}).get('name', path.stem)
+    field_file = None
+    if 'field_file' in cfg:
+        field_file, cfg = _combine_with_field_file(path, cfg)
+
+    general_cfg = cfg.get('general', {})
+    name = general_cfg.get('name', path.stem)
+    description = general_cfg.get('description', None)
+    if description is not None:
+        description = str(description)
     frame_id = cfg.get('frame', {}).get('frame_id', 'map')
 
     geometry = _parse_geometry(cfg, default_name=name)
@@ -97,6 +132,10 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
     if visualization_grid_step is not None:
         visualization_grid_step = float(visualization_grid_step)
 
+    field_value_unit = cfg.get('units', {}).get('field_value', None)
+    if field_value_unit is not None:
+        field_value_unit = str(field_value_unit)
+
     return FieldSimConfig(
         name=name,
         frame_id=frame_id,
@@ -107,6 +146,9 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
         clip_range=clip_range,
         seed=seed,
         visualization_grid_step=visualization_grid_step,
+        field_value_unit=field_value_unit,
+        description=description,
+        field_file=field_file,
     )
 
 
@@ -133,6 +175,118 @@ def load_field_from_toml(
     config = load_field_sim_config(path)
     field = build_field_from_config(config)
     return config, field
+
+
+def _combine_with_field_file(path: Path, cfg: dict) -> tuple[Path, dict]:
+    """Combine a scenario file with its referenced shared field file.
+
+    Parameters
+    ----------
+    path
+        Path of the scenario file containing `field_file`.
+    cfg
+        Parsed scenario file contents.
+
+    Returns
+    -------
+    field_file : Path
+        Resolved path of the shared field file. Relative references are
+        resolved against the scenario file's directory.
+    combined : dict
+        Shared file tables plus the scenario `[general]` table and the
+        scenario `[objects.walls]` table.
+
+    Raises
+    ------
+    ValueError
+        If the scenario defines anything besides `field_file`, `[general]`,
+        and `[objects.walls]`, if the shared file defines `field_file`,
+        `[general]`, or `[objects.walls]`, if `field_file` references the
+        scenario itself, or if the shared file is not valid TOML.
+    FileNotFoundError
+        If the shared field file does not exist.
+    """
+    ref = cfg['field_file']
+    if not isinstance(ref, str) or not ref:
+        raise ValueError(
+            f'{path}: field_file must be a non-empty string, got {ref!r}.'
+        )
+    field_file = Path(ref)
+    if not field_file.is_absolute():
+        field_file = path.parent / field_file
+    field_file = field_file.resolve()
+    if field_file == path.resolve():
+        raise ValueError(
+            f'Scenario {path} references itself via field_file; nested '
+            'field_file references are not supported.'
+        )
+
+    objects_cfg = cfg.get('objects', {})
+    conflicts = sorted(set(cfg) - {'field_file', 'general', 'objects'})
+    extra_objects = sorted(set(objects_cfg) - {'walls'})
+    conflicts += [f'objects.{key}' for key in extra_objects]
+    if conflicts:
+        raise ValueError(
+            f'Scenario {path} references shared field file {field_file} but '
+            f'also defines {conflicts} inline. With field_file, the scenario '
+            'may only define [general] and [objects.walls]; define all other '
+            'field parameters in the shared file.'
+        )
+
+    shared = _load_shared_field_file(field_file, path)
+    shared_objects = shared.get('objects', {})
+
+    combined = dict(shared)
+    if 'general' in cfg:
+        combined['general'] = cfg['general']
+    combined['objects'] = {
+        **shared_objects,
+        'walls': objects_cfg.get('walls', {}),
+    }
+    return field_file, combined
+
+
+def _load_shared_field_file(field_file: Path, path: Path) -> dict:
+    """Load and validate a shared field file referenced by scenario `path`.
+
+    Raises
+    ------
+    FileNotFoundError
+        If `field_file` does not exist.
+    ValueError
+        If `field_file` is not valid TOML or defines `field_file`,
+        `[general]`, or `[objects.walls]`.
+    """
+    if not field_file.is_file():
+        raise FileNotFoundError(
+            f'Shared field file {field_file} referenced by {path} not found.'
+        )
+    try:
+        with field_file.open('rb') as f:
+            shared = tomllib.load(f)
+    except tomllib.TOMLDecodeError as exc:
+        raise ValueError(
+            f'Invalid TOML in shared field file {field_file} referenced by '
+            f'{path}: {exc}'
+        ) from exc
+
+    if 'field_file' in shared:
+        raise ValueError(
+            f'Shared field file {field_file} referenced by {path} defines '
+            'field_file itself; nested field_file references are not '
+            'supported.'
+        )
+
+    forbidden = ['general'] if 'general' in shared else []
+    if 'walls' in shared.get('objects', {}):
+        forbidden.append('objects.walls')
+    if forbidden:
+        raise ValueError(
+            f'Shared field file {field_file} referenced by {path} must not '
+            f'define {forbidden}; [general] and [objects.walls] belong in '
+            'the scenario file.'
+        )
+    return shared
 
 
 def _parse_geometry(cfg: dict, default_name: str) -> ScenarioGeometry:

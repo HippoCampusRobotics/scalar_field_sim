@@ -75,6 +75,20 @@ $$
 1 - b_j.
 $$
 
+Walls are closed segments with a contact tolerance $\delta$ = `WALL_CONTACT_TOL` = $10^{-9}$ m (`scalar_field_sim/field.py::_segment_intersection_mask`): points within $\delta$ of a wall segment count as on the wall, so every wall has a contact band of about 1 nm on each side.
+For a source $\mathbf{a}$ and query $\mathbf{b}$:
+
+- A. $\mathbf{a} = \mathbf{b}$ (no travelled path): not blocked.
+- B. Source farther than $\delta$ from the wall: blocked iff the segment $[\mathbf{a}, \mathbf{b}]$ comes within $\delta$ of the finite wall. This blocks crossings at any nonzero angle, rays through a wall endpoint or a joint of adjoining walls, queries on the wall (any direction, including diagonal walls), and collinear overlap or touching. Parallel or collinear segments separated by more than $\delta$, and queries on the infinite wall line beyond the finite wall, are not blocked.
+- C. Source within $\delta$ of the wall: contact at the source alone does not block. Blocked iff the ray continues along the wall: the query is within $\delta$ of the wall line and the overlap of ray and wall along the wall direction exceeds $\delta$.
+
+Crossings are detected with orientation (cross-product) signs certified by Shewchuk's orient2d error filter (dimensionless bound $(3 + 16u)u$, $u = 2^{-53}$; <https://www.cs.cmu.edu/~quake/robust.html>); all other cases are decided by endpoint-to-segment distances compared with $\delta$.
+There is no division by the cross product of the directions and no angle threshold, so shallow crossings are blocked like steep ones.
+The decision is exact for the float64 inputs except for configurations within round-off (a few $10^{-16}$ times the coordinate differences) of a $\delta$ boundary; this needs $\delta \gg 10^{-16}\times$ scene size, which holds for coordinates up to about $10^4$ m.
+Reversing a wall or splitting it into touching collinear pieces leaves the result unchanged for sources farther than $\delta$ from the wall; for sources within $\delta$ of a wall (rule C) splitting can matter, see the docstring.
+Zero-length walls are rejected by `WallSegment`.
+This replaces the endpoint tolerance `WALL_ENDPOINT_TOL` of 2026-10-20 (see `scenarios/tests/fields/vis/endpoint_diagnostics/README.md`).
+
 So the effective source contribution is
 ```math
 \tilde{g}_j(\mathbf{x})
@@ -211,3 +225,71 @@ measurement_noise_std = 0.0005
 clip_min = 0.0
 clip_max = 0.02
 seed = 42
+```
+
+Optional metadata:
+- `[general] description`: free-text scenario description,
+- `[units] field_value`: unit of the field values (e.g. `"V"`), available as
+  `FieldSimConfig.field_value_unit`.
+
+### Shared field parameter files
+
+Several scenarios can share one set of field parameters and differ only in
+their walls. A scenario then references a shared field parameter file with the
+top-level key `field_file`:
+
+```toml
+field_file = "general_params.toml"
+
+[general]
+name = "single_wall"
+description = "One finite wall at x = 1 m."
+
+[objects.walls]
+wall_vertices = [[1.0, 0.4, 1.0, 3.6]]  # [x1, y1, x2, y2] per segment
+```
+
+The shared file contains all other tables (`[frame]`, `[units]`, `[bounds]`,
+`[objects.sources]`, `[simulation]`, `[simulation.source_defaults]`,
+`[visualization]`, ...).
+
+Rules:
+- A relative `field_file` path is resolved against the directory of the
+  scenario file, independent of the working directory; absolute paths are
+  allowed.
+- With `field_file`, the scenario may only contain `field_file`, `[general]`,
+  and `[objects.walls]`. The shared file must not contain `field_file`,
+  `[general]`, or `[objects.walls]`. There are no overrides: any overlap raises
+  a `ValueError` naming the conflicting keys and both files.
+- Only one level of reference is supported; a nested or self-referencing
+  `field_file` raises a `ValueError`.
+- A missing shared file raises `FileNotFoundError`; invalid TOML in the shared
+  file raises a `ValueError` naming the shared file.
+- The resolved path is available as `FieldSimConfig.field_file` (`None` for
+  self-contained scenarios). Scenario files without `field_file` are parsed
+  exactly as before.
+
+The loader is `scalar_field_sim.config.load_field_sim_config`, which is also
+used by the field server and visualization nodes, so these scenarios work with
+the existing launch files.
+
+### Plotting scenarios
+
+`plot_fields.py` plots the noiseless field, walls, and sources of one or more
+scenarios in a Matplotlib window (several scenarios share one color scale):
+
+```bash
+ros2 run scalar_field_sim plot_fields.py 01_single_wall
+ros2 run scalar_field_sim plot_fields.py tests/fields/00_open tests/fields/02_wall_with_gap
+ros2 run scalar_field_sim plot_fields.py ./my_scenario.toml --grid-step 0.05 --save my_scenario.png
+ros2 run scalar_field_sim plot_fields.py --list
+```
+
+A scenario argument is resolved, in this order, as a path relative to the
+current directory (or absolute), a path relative to the installed scenario
+folder (`.toml` optional), a path relative to the workspace root (e.g.
+`src/scalar_field_sim/scenarios/simple_field_1.toml`), or a unique file name
+below the scenario folder. Scenario files added to `scenarios/` are only found
+by name after rebuilding the package; any file can always be given by path.
+Options: `--grid-step` (default: the scenario's `[visualization] grid_step`,
+else 0.01 m), `--save PNG`, `--no-show`.
