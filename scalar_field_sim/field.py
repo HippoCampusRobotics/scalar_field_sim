@@ -3,7 +3,9 @@
 This module defines:
 - source parameter containers,
 - a continuous 2D scalar field with optional wall blocking,
-- helper functions for grid generation and segment intersection,
+- helper functions for grid generation and the ray-wall blocking test
+  (`_segment_intersection_mask`: closed walls with a contact tolerance of
+  `WALL_CONTACT_TOL` metres, round-off-certified orientation tests),
 - a helper to build simulation source specifications from scenario geometry.
 """
 
@@ -16,6 +18,16 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from scalar_field_sim.geometry import ScenarioGeometry, WallSegment
+
+# Geometric contact tolerance (m): points within this distance of a wall
+# segment count as on the wall (see `_segment_intersection_mask`).
+WALL_CONTACT_TOL = 1e-9
+
+# Round-off filter of the orientation test (dimensionless): Shewchuk's
+# ccwerrboundA = (3 + 16 u) u with float64 unit round-off u = 2**-53,
+# https://www.cs.cmu.edu/~quake/robust.html
+_UNIT_ROUNDOFF = 2.0**-53
+ORIENT_ERRBOUND = (3.0 + 16.0 * _UNIT_ROUNDOFF) * _UNIT_ROUNDOFF
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,7 +84,9 @@ class WallAwareGaussianField2D:
 
     The latent field is the sum of source contributions plus a constant background
     level. A wall can attenuate a source contribution if the line segment from the
-    source center to the query position intersects the wall segment.
+    source center to the query position intersects the wall segment (closed
+    segment with contact tolerance `WALL_CONTACT_TOL`, see
+    `_segment_intersection_mask`).
 
     Notes
     -----
@@ -372,35 +386,123 @@ def _cross2d(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return a[..., 0] * b[..., 1] - a[..., 1] * b[..., 0]
 
 
+def _dot2d(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    return a[..., 0] * b[..., 0] + a[..., 1] * b[..., 1]
+
+
+def _orient_sign(p: np.ndarray, q: np.ndarray, x: np.ndarray) -> np.ndarray:
+    """Certified sign of the orientation of the points p, q, x.
+
+    Returns +1 (counter-clockwise), -1 (clockwise) or 0 where the float64
+    sign is uncertain. Uses Shewchuk's static error filter of `orient2d`
+    (https://www.cs.cmu.edu/~quake/robust.html): the differences must be
+    formed directly from the input coordinates, as done here. A nonzero
+    result is the exact sign for the float64 inputs; exactly collinear
+    points (det == 0) always give 0.
+    """
+    detleft = (q[..., 0] - p[..., 0]) * (x[..., 1] - p[..., 1])
+    detright = (q[..., 1] - p[..., 1]) * (x[..., 0] - p[..., 0])
+    det = detleft - detright
+    errbound = ORIENT_ERRBOUND * (np.abs(detleft) + np.abs(detright))
+    return np.where(np.abs(det) > errbound, np.sign(det), 0.0)
+
+
+def _point_segment_dist2(
+    p: np.ndarray, u: np.ndarray, w: np.ndarray, ww: np.ndarray
+) -> np.ndarray:
+    """Squared distance from p to the closed segment [u, u + w].
+
+    `ww = dot(w, w)`. Where `ww == 0` the segment is the point u.
+    """
+    pu = p - u
+    num = _dot2d(pu, w)
+    shape = np.broadcast_shapes(np.shape(num), np.shape(ww))
+    num, ww = np.broadcast_to(num, shape), np.broadcast_to(ww, shape)
+    t = np.zeros(shape)
+    np.divide(num, ww, out=t, where=ww > 0.0)
+    t = np.clip(t, 0.0, 1.0)
+    ex = pu[..., 0] - t * w[..., 0]
+    ey = pu[..., 1] - t * w[..., 1]
+    return ex * ex + ey * ey
+
+
 def _segment_intersection_mask(
     a: ArrayLike,
     b: ArrayLike,
     c: ArrayLike,
     d: ArrayLike,
-    eps: float = 1e-12,
+    contact_tol: float = WALL_CONTACT_TOL,
 ) -> np.ndarray:
     """
-    Vectorized segment-segment intersection test.
+    Vectorized line-of-sight test of rays a->b against one wall c->d.
+
+    The wall is a closed segment thickened by the contact tolerance
+    delta = `contact_tol` (metres): points within distance delta of the wall
+    segment count as on the wall. Policy for each ray segment [a, b]:
+
+    A. a == b (zero-length ray, no travelled path): not blocked.
+    B. dist(a, wall) > delta: blocked iff dist([a, b], wall) <= delta. This
+       blocks crossings at any nonzero angle, contact at a wall endpoint or
+       joint, queries on the wall (any wall direction) and collinear
+       overlap or touching. Parallel or collinear segments separated by
+       more than delta, and queries on the infinite wall line beyond the
+       finite wall, are not blocked.
+    C. dist(a, wall) <= delta (source touching the wall): contact at the
+       source alone is excluded. Blocked iff the ray continues along the
+       wall: dist(b, wall line) <= delta and the projections of [a, b] and
+       the wall onto the wall direction overlap by more than delta.
+
+    Computation: dist([a, b], wall) is 0 if the segments properly cross with
+    all four orientation signs certified by Shewchuk's orient2d error filter
+    (`ORIENT_ERRBOUND`, dimensionless), else the minimum of the four
+    endpoint-to-segment distances. There is no division by the cross
+    product of the directions and no angle threshold. A certified proper
+    crossing is a true crossing. If the segments truly intersect but an
+    orientation is uncertain, an endpoint lies within about
+    `ORIENT_ERRBOUND * |coordinate differences|` (~1e-15 m at 10 m) of the
+    other segment's line and, by linearity of the signed distance along a
+    segment, some endpoint lies within that distance of the other segment,
+    so the endpoint-distance term blocks it. The result is therefore exact
+    for the float64 inputs except for configurations within the round-off
+    of the distance computations (a few 1e-16 times the coordinate
+    differences) of a delta boundary. This requires delta >> 1e-16 * scene
+    size; with delta = 1e-9 m, coordinates up to |x| ~ 1e4 m keep that
+    round-off below ~1e-11 m (1 % of delta).
+
+    Limitations: decisions within that round-off of a delta boundary (e.g.
+    a query almost exactly delta from a wall) may differ from exact
+    arithmetic. For sources farther than delta from a wall, reversing or
+    splitting the wall into touching collinear pieces cannot change the
+    result (the distance to a union is the minimum of the distances). For a
+    source within delta of a wall, rule C applies per wall segment, so
+    splitting can matter: a ray leaving such a source at a grazing angle
+    (query more than delta off the wall line) is not blocked by that
+    segment even if it crosses the wall line farther along, but it is
+    blocked by another piece it crosses; and a collinear ray of length
+    about 2 delta or less across a joint can overlap each piece by <= delta.
 
     Parameters
     ----------
     a, b : (N, 2)
-        Start/end points of N segments.
+        Start (source) and end (query) points of N ray segments.
     c, d : (2,)
-        Start/end points of one wall segment.
+        Start/end points of one wall segment; must differ.
+    contact_tol
+        Contact tolerance delta in metres; positive and finite.
 
     Returns
     -------
     (N,) boolean mask
-        True where segment a->b intersects c->d.
+        True where the wall blocks the ray a->b.
 
     Raises
     ------
     ValueError
-        If shapes are incompatible or eps <= 0
+        If shapes are incompatible, the wall has zero length, or
+        contact_tol is not positive and finite.
     """
-    if eps <= 0.0 or not np.isfinite(eps):
-        raise ValueError('eps must be a positive finite number.')
+    if not np.isfinite(contact_tol) or contact_tol <= 0.0:
+        raise ValueError('contact_tol must be a positive finite number.')
 
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
@@ -414,23 +516,47 @@ def _segment_intersection_mask(
     if c.shape != (2,) or d.shape != (2,):
         raise ValueError('c and d must have shape (2,).')
 
-    r = b - a
     s = d - c
-    denom = _cross2d(r, s)
+    ss = float(_dot2d(s, s))
+    if ss == 0.0:
+        raise ValueError('Wall segment must have nonzero length.')
+    r = b - a
+    rr = _dot2d(r, r)
+    tol2 = contact_tol * contact_tol
 
-    q_minus_p = c - a
-    numer_t = _cross2d(q_minus_p, s)
-    numer_u = _cross2d(q_minus_p, r)
+    # A: zero-length rays have no travelled path.
+    has_path = np.any(a != b, axis=1)
 
-    t = np.full(denom.shape, np.nan)
-    u = np.full(denom.shape, np.nan)
+    # B: closed, delta-thickened segment distance.
+    dist2_a_wall = _point_segment_dist2(a, c, s, ss)
+    near = (
+        (dist2_a_wall <= tol2)
+        | (_point_segment_dist2(b, c, s, ss) <= tol2)
+        | (_point_segment_dist2(c, a, r, rr) <= tol2)
+        | (_point_segment_dist2(d, a, r, rr) <= tol2)
+    )
+    crosses = (_orient_sign(a, b, c) * _orient_sign(a, b, d) < 0.0) & (
+        _orient_sign(c, d, a) * _orient_sign(c, d, b) < 0.0
+    )
+    blocked_free_source = crosses | near
 
-    mask = np.abs(denom) > eps
-    t[mask] = numer_t[mask] / denom[mask]
-    u[mask] = numer_u[mask] / denom[mask]
+    source_contact = dist2_a_wall <= tol2
+    if not np.any(source_contact):
+        return has_path & blocked_free_source
 
-    # For line-of-sight blocking, it is safer to exclude the exact ray start point.
-    return mask & (t > eps) & (t <= 1.0) & (u >= 0.0) & (u <= 1.0)
+    # C: source touches the wall; only continuation along the wall blocks.
+    wall_length = np.sqrt(ss)
+    b_on_line = np.abs(_cross2d(s, b - c)) <= contact_tol * wall_length
+    pa = _dot2d(a - c, s) / wall_length
+    pb = _dot2d(b - c, s) / wall_length
+    overlap = np.minimum(np.maximum(pa, pb), wall_length) - np.maximum(
+        np.minimum(pa, pb), 0.0
+    )
+    continues_along_wall = b_on_line & (overlap > contact_tol)
+
+    return has_path & np.where(
+        source_contact, continues_along_wall, blocked_free_source
+    )
 
 
 def build_simulation_sources(

@@ -55,6 +55,11 @@ class WallSegment:
     def __post_init__(self) -> None:
         _validate_point2d('WallSegment.start', self.start)
         _validate_point2d('WallSegment.end', self.end)
+        if tuple(map(float, self.start)) == tuple(map(float, self.end)):
+            raise ValueError(
+                'WallSegment must have nonzero length, got start == end == '
+                f'{self.start}.'
+            )
 
     def as_tuple(self) -> tuple[Point2D, Point2D]:
         return self.start, self.end

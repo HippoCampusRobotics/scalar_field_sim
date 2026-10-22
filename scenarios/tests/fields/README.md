@@ -74,10 +74,8 @@ the infinite wall line beyond a wall end, and rays passing a wall end or
 running parallel at 1e-6 m or more, are not blocked. Contact at the source
 position alone does not block. For these scenarios (sources well away from
 the walls) splitting a wall or reversing its endpoints does not change the
-field, and grid points on the walls are 0. This replaces the endpoint
-tolerance of 2026-10-20; policy, numerical range and limitations are in
-"Wall attenuation" of the package `readme.md` and in
-`vis/endpoint_diagnostics/README.md`.
+field, and grid points on the walls are 0. Policy, numerical range and
+limitations are in "Wall attenuation" of the package `readme.md`.
 
 Source positions are hidden ground truth used only by the field generator.
 They are drawn in the plot for inspection only and must not be passed to a
