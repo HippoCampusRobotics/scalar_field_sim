@@ -87,7 +87,6 @@ There is no division by the cross product of the directions and no angle thresho
 The decision is exact for the float64 inputs except for configurations within round-off (a few $10^{-16}$ times the coordinate differences) of a $\delta$ boundary; this needs $\delta \gg 10^{-16}\times$ scene size, which holds for coordinates up to about $10^4$ m.
 Reversing a wall or splitting it into touching collinear pieces leaves the result unchanged for sources farther than $\delta$ from the wall; for sources within $\delta$ of a wall (rule C) splitting can matter, see the docstring.
 Zero-length walls are rejected by `WallSegment`.
-This replaces the endpoint tolerance `WALL_ENDPOINT_TOL` of 2026-10-20 (see `scenarios/tests/fields/vis/endpoint_diagnostics/README.md`).
 
 So the effective source contribution is
 ```math
