@@ -26,6 +26,7 @@
   <depend>hippo_common</depend>
 
   <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
   <exec_depend>scalar_field_belief</exec_depend>
   
   <!-- The export tag contains other, unspecified, tags -->

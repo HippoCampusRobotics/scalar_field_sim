@@ -53,6 +53,7 @@ install(PROGRAMS
   nodes/field_visualization_node.py
   nodes/ir_measurement_sim_node.py
   nodes/periodic_measurement_trigger_node.py
+  scripts/plot_fields.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

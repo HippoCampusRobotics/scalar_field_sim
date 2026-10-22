@@ -1,0 +1,8 @@
+field_file = "general_params.toml"
+
+[general]
+name = "00_open"
+description = "Open domain without internal walls."
+
+[objects.walls]
+wall_vertices = []
