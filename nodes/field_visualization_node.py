@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from math import isfinite
-from pathlib import Path
 
 import rclpy
 from rcl_interfaces.msg import SetParametersResult
@@ -12,7 +11,10 @@ from rclpy.qos import (
     QoSProfile,
     ReliabilityPolicy,
 )
-from scalar_field_sim.config import load_field_from_toml
+from scalar_field_sim.config import (
+    load_field_from_toml,
+    resolve_package_path,
+)
 from scalar_field_sim.markers import make_source_markers, make_wall_markers
 from scalar_field_sim.pointcloud import make_field_pointcloud2
 from sensor_msgs.msg import PointCloud2
@@ -35,7 +37,8 @@ class FieldVisualizationNode(Node):
     def __init__(self):
         super().__init__('field_visualization')
 
-        # Path to the scenario TOML file.
+        # Path to the scenario TOML file, absolute or relative to the
+        # installed scalar_field_sim share directory.
         # Note that this node needs to use the same scenario definition as the
         # field_server_node!
         self.declare_parameter('scenario_path', '')
@@ -74,7 +77,11 @@ class FieldVisualizationNode(Node):
         if not scenario_path:
             raise ValueError("Parameter 'scenario_path' must be set.")
 
-        self.config, self.field = load_field_from_toml(Path(scenario_path))
+        scenario_file = resolve_package_path(scenario_path)
+        self.config, self.field = load_field_from_toml(scenario_file)
+        self.get_logger().info(
+            f"Loaded scenario '{self.config.name}' from {scenario_file}."
+        )
 
         # Use transient-local durability so RViz can receive the last published
         # visualization even if the display is added later.

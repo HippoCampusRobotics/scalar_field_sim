@@ -12,6 +12,8 @@ def declare_launch_args(launch_description: LaunchDescription):
     action = DeclareLaunchArgument(
         'scenario_path',
         default_value=scenario_path,
+        description='Scenario TOML file, absolute or relative to the '
+        'installed scalar_field_sim share directory.',
     )
     launch_description.add_action(action)
 
