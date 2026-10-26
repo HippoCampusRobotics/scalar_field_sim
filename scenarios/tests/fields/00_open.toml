@@ -1,8 +1,6 @@
-field_file = "general_params.toml"
+geometry_file = "../../../geometry/tank_2x4_open.toml"
+field_file = "../../../fields/test_four_sources.toml"
 
 [general]
 name = "00_open"
 description = "Open domain without internal walls."
-
-[objects.walls]
-wall_vertices = []

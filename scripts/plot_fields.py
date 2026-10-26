@@ -16,8 +16,9 @@ A SCENARIO is resolved in this order:
    e.g. `01_single_wall`.
 
 Each scenario is loaded with `scalar_field_sim.config.load_field_from_toml`
-(including shared `field_file` resolution) and evaluated with the field's own
-`evaluate_on_grid`. Walls and sources are drawn from the loaded geometry.
+(including `geometry_file` and `field_file` resolution) and evaluated with the
+field's own `evaluate_on_grid`. Walls and sources are drawn from the loaded
+geometry.
 """
 
 from __future__ import annotations
@@ -201,9 +202,10 @@ def main() -> int:
     for spec in args.scenarios:
         path = resolve_scenario(spec)
         config, x, y, values = evaluate_scenario(path, args.grid_step)
-        shared = config.field_file or 'none (inline definition)'
+        inline = 'none (inline definition)'
         print(f'{config.name}: {path.resolve()}')
-        print(f'  shared parameter file: {shared}')
+        print(f'  geometry file: {config.geometry_file or inline}')
+        print(f'  field file: {config.field_file or inline}')
         results.append((config, x, y, values))
 
     units = {config.field_value_unit for config, *_ in results}

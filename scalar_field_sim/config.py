@@ -3,11 +3,18 @@
 This module parses a TOML scenario description into a typed
 `FieldSimConfig` and builds the corresponding `WallAwareGaussianField2D`.
 
-A scenario file either defines all tables inline or references one shared
-field parameter file via the top-level key `field_file`. In the latter case
-the scenario file may only contain `field_file`, `[general]`, and
-`[objects.walls]`; everything else comes from the shared file. References
-are resolved relative to the scenario file and are not recursive.
+A scenario file either defines all tables inline (self-contained form) or
+references one geometry file and one field file via the top-level keys
+`geometry_file` and `field_file` (reference form):
+
+- geometry file: `[general]`, `[frame]`, `[bounds]`, `[objects.walls]`, and
+  optionally `[units] length`;
+- field file: `[units]`, `[objects.sources]`, `[simulation]` (including
+  `[simulation.source_defaults]`), and `[visualization]`;
+- scenario: `geometry_file`, `field_file`, and `[general]` only.
+
+References are resolved relative to the scenario file's directory and are
+not recursive.
 """
 
 from __future__ import annotations
@@ -59,8 +66,12 @@ class FieldSimConfig:
         Optional unit of the field values, from `[units] field_value`.
     description
         Optional scenario description, from `[general] description`.
+    geometry_file
+        Resolved path of the referenced geometry file, `None` for
+        self-contained scenarios.
     field_file
-        Resolved path of the shared field parameter file, if referenced.
+        Resolved path of the referenced field file, `None` for
+        self-contained scenarios.
     """
 
     name: str
@@ -74,13 +85,44 @@ class FieldSimConfig:
     visualization_grid_step: float | None = None
     field_value_unit: str | None = None
     description: str | None = None
+    geometry_file: Path | None = None
     field_file: Path | None = None
+
+
+def resolve_package_path(
+    path: str | Path, share_dir: str | Path | None = None
+) -> Path:
+    """Resolve a scenario, geometry, or field path of this package.
+
+    Parameters
+    ----------
+    path
+        Absolute path, or path relative to the scalar_field_sim share
+        directory, e.g. `scenarios/tests/fields/01_single_wall.toml`.
+    share_dir
+        Directory that relative paths are resolved against. Defaults to the
+        installed share directory of scalar_field_sim, looked up with
+        `ament_index_python` (imported only in that case).
+
+    Returns
+    -------
+    Path
+        `path` unchanged if it is absolute, otherwise `share_dir / path`.
+    """
+    path = Path(path)
+    if path.is_absolute():
+        return path
+    if share_dir is None:
+        from ament_index_python.packages import get_package_share_directory
+
+        share_dir = get_package_share_directory('scalar_field_sim')
+    return Path(share_dir) / path
 
 
 def load_field_sim_config(path: str | Path) -> FieldSimConfig:
     """Parse one TOML scenario file into a `FieldSimConfig`.
 
-    The TOML file defines:
+    The scenario defines:
     - general scenario metadata,
     - frame id,
     - rectangular field bounds,
@@ -88,26 +130,31 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
     - source positions or full source specifications,
     - simulation parameters such as noise, clipping, and random seed.
 
-    If the top-level key `field_file` is present, all tables except
-    `[general]` and `[objects.walls]` are read from that shared file instead,
-    see `_combine_with_field_file`.
+    In the reference form, the scenario contains only the top-level keys
+    `geometry_file` and `field_file` and an optional `[general]` table. Frame,
+    bounds, and walls are then read from the geometry file, and units,
+    sources, simulation, and visualization settings from the field file, see
+    `_combine_referenced_files`. A scenario with neither key is
+    self-contained and defines all tables inline.
 
     Raises
     ------
     ValueError
-        If inline and referenced field definitions conflict, if `field_file`
-        references are nested, or if the shared file is not valid TOML.
+        If only one reference is given, if the scenario or a referenced file
+        contains keys that are not allowed there, if references are nested,
+        or if a referenced file is not valid TOML.
     FileNotFoundError
-        If the referenced shared field file does not exist.
+        If a referenced file does not exist.
     """
     path = Path(path)
 
     with path.open('rb') as f:
         cfg = tomllib.load(f)
 
+    geometry_file = None
     field_file = None
-    if 'field_file' in cfg:
-        field_file, cfg = _combine_with_field_file(path, cfg)
+    if 'geometry_file' in cfg or 'field_file' in cfg:
+        geometry_file, field_file, cfg = _combine_referenced_files(path, cfg)
 
     general_cfg = cfg.get('general', {})
     name = general_cfg.get('name', path.stem)
@@ -148,6 +195,7 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
         visualization_grid_step=visualization_grid_step,
         field_value_unit=field_value_unit,
         description=description,
+        geometry_file=geometry_file,
         field_file=field_file,
     )
 
@@ -155,7 +203,9 @@ def load_field_sim_config(path: str | Path) -> FieldSimConfig:
 def build_field_from_config(config: FieldSimConfig) -> WallAwareGaussianField2D:
     """Construct a scalar field from a parsed config.
     See field.py for definition of field object WallAwareGaussianField2D."""
-    rng = np.random.default_rng(config.seed) if config.seed is not None else None
+    rng = (
+        np.random.default_rng(config.seed) if config.seed is not None else None
+    )
     return WallAwareGaussianField2D(
         sources=list(config.source_specs),
         walls=list(config.geometry.walls),
@@ -177,116 +227,198 @@ def load_field_from_toml(
     return config, field
 
 
-def _combine_with_field_file(path: Path, cfg: dict) -> tuple[Path, dict]:
-    """Combine a scenario file with its referenced shared field file.
+# Top-level keys allowed in a scenario that references other files.
+_SCENARIO_KEYS = {'geometry_file', 'field_file', 'general'}
+# Allowed top-level keys and allowed keys of their subtables.
+_GEOMETRY_KEYS = {
+    'general': None,
+    'frame': None,
+    'bounds': None,
+    'objects': {'walls'},
+    'units': {'length'},
+}
+_FIELD_KEYS = {
+    'units': {'field_value', 'length'},
+    'objects': {'sources'},
+    'simulation': None,
+    'visualization': None,
+}
+_BOUNDS_KEYS = ('x_min', 'x_max', 'y_min', 'y_max')
+
+
+def _combine_referenced_files(path: Path, cfg: dict) -> tuple[Path, Path, dict]:
+    """Combine a scenario with its referenced geometry and field files.
 
     Parameters
     ----------
     path
-        Path of the scenario file containing `field_file`.
+        Path of the scenario file containing `geometry_file` or `field_file`.
     cfg
         Parsed scenario file contents.
 
     Returns
     -------
-    field_file : Path
-        Resolved path of the shared field file. Relative references are
+    geometry_file, field_file : Path
+        Resolved paths of the referenced files. Relative references are
         resolved against the scenario file's directory.
     combined : dict
-        Shared file tables plus the scenario `[general]` table and the
-        scenario `[objects.walls]` table.
+        One configuration in the self-contained layout: `[general]` from the
+        scenario; `[frame]`, `[bounds]`, and `[objects.walls]` from the
+        geometry file; `[objects.sources]`, `[simulation]`, and
+        `[visualization]` from the field file; `[units]` from both files.
 
     Raises
     ------
     ValueError
-        If the scenario defines anything besides `field_file`, `[general]`,
-        and `[objects.walls]`, if the shared file defines `field_file`,
-        `[general]`, or `[objects.walls]`, if `field_file` references the
-        scenario itself, or if the shared file is not valid TOML.
+        If only one of the two references is given, if a reference is not a
+        non-empty string, if the scenario or a referenced file contains keys
+        that are not allowed there, if a referenced file contains a reference
+        itself, if a referenced file is not valid TOML, or if both files
+        define different `units.length` values.
     FileNotFoundError
-        If the shared field file does not exist.
+        If a referenced file does not exist.
     """
-    ref = cfg['field_file']
-    if not isinstance(ref, str) or not ref:
+    missing = [key for key in ('geometry_file', 'field_file') if key not in cfg]
+    if missing:
         raise ValueError(
-            f'{path}: field_file must be a non-empty string, got {ref!r}.'
+            f'Scenario {path} must define both geometry_file and field_file; '
+            f'missing {missing}.'
         )
-    field_file = Path(ref)
-    if not field_file.is_absolute():
-        field_file = path.parent / field_file
-    field_file = field_file.resolve()
-    if field_file == path.resolve():
+    extra = sorted(set(cfg) - _SCENARIO_KEYS)
+    if extra:
         raise ValueError(
-            f'Scenario {path} references itself via field_file; nested '
-            'field_file references are not supported.'
-        )
-
-    objects_cfg = cfg.get('objects', {})
-    conflicts = sorted(set(cfg) - {'field_file', 'general', 'objects'})
-    extra_objects = sorted(set(objects_cfg) - {'walls'})
-    conflicts += [f'objects.{key}' for key in extra_objects]
-    if conflicts:
-        raise ValueError(
-            f'Scenario {path} references shared field file {field_file} but '
-            f'also defines {conflicts} inline. With field_file, the scenario '
-            'may only define [general] and [objects.walls]; define all other '
-            'field parameters in the shared file.'
+            f'Scenario {path} references a geometry and a field file but '
+            f'also defines {extra}. It may only define geometry_file, '
+            'field_file, and [general].'
         )
 
-    shared = _load_shared_field_file(field_file, path)
-    shared_objects = shared.get('objects', {})
+    geometry_file = _resolve_reference(path, cfg, 'geometry_file')
+    field_file = _resolve_reference(path, cfg, 'field_file')
+    geometry = _load_referenced_file(
+        geometry_file, path, 'Geometry', _GEOMETRY_KEYS
+    )
+    field = _load_referenced_file(field_file, path, 'Field', _FIELD_KEYS)
 
-    combined = dict(shared)
+    missing_bounds = [
+        key for key in _BOUNDS_KEYS if key not in geometry.get('bounds', {})
+    ]
+    if missing_bounds:
+        raise ValueError(
+            f'Geometry file {geometry_file} referenced by {path} is missing '
+            f'bounds {missing_bounds}.'
+        )
+
+    geometry_units = geometry.get('units', {})
+    field_units = field.get('units', {})
+    if (
+        'length' in geometry_units
+        and 'length' in field_units
+        and geometry_units['length'] != field_units['length']
+    ):
+        raise ValueError(
+            f'Geometry file {geometry_file} and field file {field_file} '
+            f'referenced by {path} define different units.length values '
+            f'({geometry_units["length"]!r}, {field_units["length"]!r}).'
+        )
+
+    combined = {
+        key: geometry[key] for key in ('frame', 'bounds') if key in geometry
+    }
+    combined.update(
+        {
+            key: field[key]
+            for key in ('simulation', 'visualization')
+            if key in field
+        }
+    )
     if 'general' in cfg:
         combined['general'] = cfg['general']
+    combined['units'] = {**geometry_units, **field_units}
     combined['objects'] = {
-        **shared_objects,
-        'walls': objects_cfg.get('walls', {}),
+        **geometry.get('objects', {}),
+        **field.get('objects', {}),
     }
-    return field_file, combined
+    return geometry_file, field_file, combined
 
 
-def _load_shared_field_file(field_file: Path, path: Path) -> dict:
-    """Load and validate a shared field file referenced by scenario `path`.
+def _resolve_reference(path: Path, cfg: dict, key: str) -> Path:
+    """Resolve reference `key` of scenario `path` to an absolute path."""
+    ref = cfg[key]
+    if not isinstance(ref, str) or not ref:
+        raise ValueError(
+            f'{path}: {key} must be a non-empty string, got {ref!r}.'
+        )
+    resolved = Path(ref)
+    if not resolved.is_absolute():
+        resolved = path.parent / resolved
+    return resolved.resolve()
+
+
+def _load_referenced_file(
+    ref_path: Path,
+    path: Path,
+    kind: str,
+    allowed: dict[str, set[str] | None],
+) -> dict:
+    """Load a geometry or field file referenced by scenario `path`.
+
+    Parameters
+    ----------
+    ref_path
+        Resolved path of the referenced file.
+    path
+        Path of the referencing scenario file, used in error messages.
+    kind
+        `'Geometry'` or `'Field'`, used in error messages.
+    allowed
+        Allowed top-level keys. A set value restricts the keys of that
+        table; `None` allows any content.
 
     Raises
     ------
     FileNotFoundError
-        If `field_file` does not exist.
+        If `ref_path` does not exist.
     ValueError
-        If `field_file` is not valid TOML or defines `field_file`,
-        `[general]`, or `[objects.walls]`.
+        If `ref_path` is not valid TOML, references another file, or
+        contains keys outside `allowed`.
     """
-    if not field_file.is_file():
+    if not ref_path.is_file():
         raise FileNotFoundError(
-            f'Shared field file {field_file} referenced by {path} not found.'
+            f'{kind} file {ref_path} referenced by {path} not found.'
         )
     try:
-        with field_file.open('rb') as f:
-            shared = tomllib.load(f)
+        with ref_path.open('rb') as f:
+            data = tomllib.load(f)
     except tomllib.TOMLDecodeError as exc:
         raise ValueError(
-            f'Invalid TOML in shared field file {field_file} referenced by '
+            f'Invalid TOML in {kind.lower()} file {ref_path} referenced by '
             f'{path}: {exc}'
         ) from exc
 
-    if 'field_file' in shared:
+    nested = sorted({'geometry_file', 'field_file'} & set(data))
+    if nested:
         raise ValueError(
-            f'Shared field file {field_file} referenced by {path} defines '
-            'field_file itself; nested field_file references are not '
-            'supported.'
+            f'{kind} file {ref_path} referenced by {path} defines {nested}; '
+            'referenced files must not reference other files.'
         )
 
-    forbidden = ['general'] if 'general' in shared else []
-    if 'walls' in shared.get('objects', {}):
-        forbidden.append('objects.walls')
+    forbidden = sorted(set(data) - set(allowed))
+    for key, subkeys in allowed.items():
+        table = data.get(key)
+        if subkeys is not None and isinstance(table, dict):
+            forbidden += [
+                f'{key}.{sub}' for sub in sorted(set(table) - subkeys)
+            ]
     if forbidden:
-        raise ValueError(
-            f'Shared field file {field_file} referenced by {path} must not '
-            f'define {forbidden}; [general] and [objects.walls] belong in '
-            'the scenario file.'
+        allowed_text = ', '.join(
+            key if subkeys is None else f'{key} ({", ".join(sorted(subkeys))})'
+            for key, subkeys in allowed.items()
         )
-    return shared
+        raise ValueError(
+            f'{kind} file {ref_path} referenced by {path} must not define '
+            f'{forbidden}; allowed are: {allowed_text}.'
+        )
+    return data
 
 
 def _parse_geometry(cfg: dict, default_name: str) -> ScenarioGeometry:
@@ -316,7 +448,9 @@ def _parse_walls(walls_cfg: dict) -> tuple[WallSegment, ...]:
 
     for i, wall in enumerate(wall_vertices):
         if len(wall) != 4:
-            raise ValueError(f'Wall {i} must have format [x1, y1, x2, y2], got {wall}')
+            raise ValueError(
+                f'Wall {i} must have format [x1, y1, x2, y2], got {wall}'
+            )
         x1, y1, x2, y2 = map(float, wall)
         walls.append(WallSegment(start=(x1, y1), end=(x2, y2)))
 

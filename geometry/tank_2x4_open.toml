@@ -1,0 +1,20 @@
+# Geometry file: domain bounds and walls only.
+
+[general]
+name = "tank_2x4_open"
+description = "Open 2 m x 4 m domain without internal walls."
+
+[frame]
+frame_id = "map"
+
+[units]
+length = "m"
+
+[bounds]
+x_min = 0.0
+x_max = 2.0
+y_min = 0.0
+y_max = 4.0
+
+[objects.walls]
+wall_vertices = []  # [x1, y1, x2, y2] per segment

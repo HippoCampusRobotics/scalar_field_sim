@@ -1,0 +1,20 @@
+# Geometry file: domain bounds and walls only.
+
+[general]
+name = "tank_2x4_two_walls"
+description = "Wall at x = 1 m from y = 0.6 m to 3.4 m and a wall at y = 2.1 m from x = 1 m to 1.5 m."
+
+[frame]
+frame_id = "map"
+
+[units]
+length = "m"
+
+[bounds]
+x_min = 0.0
+x_max = 2.0
+y_min = 0.0
+y_max = 4.0
+
+[objects.walls]
+wall_vertices = [[1.0, 0.6, 1.0, 3.4], [1.0, 2.1, 1.5, 2.1]]  # [x1, y1, x2, y2] per segment

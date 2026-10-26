@@ -1,32 +1,5 @@
+geometry_file = "../geometry/tank_2x4_open.toml"
+field_file = "../fields/simple_field_1.toml"
+
 [general]
 name = "simple_field_1"
-
-[frame]
-frame_id = "map"
-
-[bounds]
-x_min = 0.0
-x_max = 2.0
-y_min = 0.0
-y_max = 4.0
-
-# [objects.walls]
-# wall_vertices = [[1.0, 0.6, 1.0, 3.4], [1.0, 2.1, 1.5, 2.1]]
-
-[objects.sources]
-source_positions = [[1.2, 2.0]]
-
-[simulation.source_defaults]
-amplitude = 0.011
-sigma_x = 0.18
-sigma_y = 0.18
-# optional
-blocking_strength = 1.0
-
-[simulation]
-background_floor = 0.0
-measurement_noise_std = 0.0005
-clip_min = 0.0
-clip_max = 0.02
-seed = 42
-
