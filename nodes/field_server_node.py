@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-from pathlib import Path
 
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from scalar_field_interfaces.srv import SampleScalarField
-from scalar_field_sim.config import load_field_from_toml
+from scalar_field_sim.config import (
+    load_field_from_toml,
+    resolve_package_path,
+)
 
 
 class FieldServerNode(Node):
@@ -26,7 +28,8 @@ class FieldServerNode(Node):
     def __init__(self):
         super().__init__('field_server')
 
-        # Path to the scenario TOML file.
+        # Path to the scenario TOML file, absolute or relative to the
+        # installed scalar_field_sim share directory.
         # Note that this node needs to use the same scenario definition as the
         # field_visualization_node!
         self.declare_parameter('scenario_path', '')
@@ -48,14 +51,15 @@ class FieldServerNode(Node):
             raise ValueError("Parameter 'scenario_path' must be set.")
 
         # load scenario config, define field object
-        self.config, self.field = load_field_from_toml(Path(scenario_path))
+        scenario_file = resolve_package_path(scenario_path)
+        self.config, self.field = load_field_from_toml(scenario_file)
 
         self.srv = self.create_service(
             SampleScalarField, service_name, self._handle_sample
         )
 
         self.get_logger().info(
-            f"Loaded scenario '{self.config.name}' from {scenario_path}. "
+            f"Loaded scenario '{self.config.name}' from {scenario_file}. "
             f"Serving on '{service_name}'."
         )
 
