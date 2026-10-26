@@ -179,14 +179,15 @@ The field cloud is published with transient-local durability. RViz may still req
 
 ## Scenario configuration
 
-A scenario TOML file defines:
+A scenario defines:
 - workspace bounds,
 - wall geometry,
 - source positions or source specifications,
 - simulation parameters,
 - visualization settings.
 
-A minimal example:
+It is either self-contained (all tables in one file) or references a geometry
+file and a field file (see below). A minimal self-contained example:
 
 ```toml
 [general]
@@ -219,7 +220,7 @@ sigma_y = 0.18
 blocking_strength = 1.0
 
 [simulation]
-background_floor = 0.0
+background_level = 0.0
 measurement_noise_std = 0.0005
 clip_min = 0.0
 clip_max = 0.02
@@ -231,46 +232,95 @@ Optional metadata:
 - `[units] field_value`: unit of the field values (e.g. `"V"`), available as
   `FieldSimConfig.field_value_unit`.
 
-### Shared field parameter files
+### Geometry, field, and scenario files
 
-Several scenarios can share one set of field parameters and differ only in
-their walls. A scenario then references a shared field parameter file with the
-top-level key `field_file`:
+A scenario can be split into a geometry file (domain layout) and a field file
+(scalar field definition). The scenario file then only references both:
+
+```text
+geometry/   geometry files: frame, bounds, walls
+fields/     field files: units, sources, simulation and visualization settings
+scenarios/  scenario files: one geometry file + one field file
+```
+
+Geometry file, e.g. `geometry/tank_2x4_single_wall.toml`:
 
 ```toml
-field_file = "general_params.toml"
-
 [general]
-name = "single_wall"
-description = "One finite wall at x = 1 m."
+name = "tank_2x4_single_wall"     # optional, default: file stem
 
-[objects.walls]
+[frame]
+frame_id = "map"                  # optional, default: "map"
+
+[units]
+length = "m"                      # optional
+
+[bounds]                          # required
+x_min = 0.0
+x_max = 2.0
+y_min = 0.0
+y_max = 4.0
+
+[objects.walls]                   # optional
 wall_vertices = [[1.0, 0.4, 1.0, 3.6]]  # [x1, y1, x2, y2] per segment
 ```
 
-The shared file contains all other tables (`[frame]`, `[units]`, `[bounds]`,
-`[objects.sources]`, `[simulation]`, `[simulation.source_defaults]`,
-`[visualization]`, ...).
+A geometry file may only contain `[general]`, `[frame]`, `[bounds]`,
+`[objects.walls]`, and `[units] length`. It uses the same keys as a
+self-contained scenario, so the wall loaders of `scalar_field_belief` (GP and
+GMRF) read it directly.
+
+Field file, e.g. `fields/test_four_sources.toml`: `[units]` (`field_value`,
+optional `length`), `[objects.sources]`, `[simulation]` including
+`[simulation.source_defaults]`, and `[visualization]`. It must not contain
+`[bounds]`, `[frame]`, `[objects.walls]`, or `[general]`.
+
+Scenario file, e.g. `scenarios/tests/fields/01_single_wall.toml`:
+
+```toml
+geometry_file = "../../../geometry/tank_2x4_single_wall.toml"
+field_file = "../../../fields/test_four_sources.toml"
+
+[general]
+name = "01_single_wall"
+description = "One finite wall at x = 1 m from y = 0.4 m to y = 3.6 m."
+```
 
 Rules:
-- A relative `field_file` path is resolved against the directory of the
-  scenario file, independent of the working directory; absolute paths are
-  allowed.
-- With `field_file`, the scenario may only contain `field_file`, `[general]`,
-  and `[objects.walls]`. The shared file must not contain `field_file`,
-  `[general]`, or `[objects.walls]`. There are no overrides: any overlap raises
-  a `ValueError` naming the conflicting keys and both files.
-- Only one level of reference is supported; a nested or self-referencing
-  `field_file` raises a `ValueError`.
-- A missing shared file raises `FileNotFoundError`; invalid TOML in the shared
-  file raises a `ValueError` naming the shared file.
-- The resolved path is available as `FieldSimConfig.field_file` (`None` for
-  self-contained scenarios). Scenario files without `field_file` are parsed
-  exactly as before.
+- A scenario in reference form needs both `geometry_file` and `field_file`
+  and may contain nothing else except `[general]` (`name`, `description`).
+  The scenario name and description come from this `[general]` table; the
+  name defaults to the scenario file stem.
+- Relative paths are resolved against the directory of the scenario file,
+  independent of the working directory; absolute paths are allowed.
+- Referenced files must not contain `geometry_file` or `field_file` (only one
+  level of reference).
+- Keys outside the allowed sets above, a single reference, or a nested
+  reference raise a `ValueError` naming the keys and files. A missing
+  referenced file raises `FileNotFoundError`; invalid TOML in a referenced
+  file raises a `ValueError` naming that file.
+- The resolved paths are available as `FieldSimConfig.geometry_file` and
+  `FieldSimConfig.field_file`.
+
+Scenario files without `geometry_file` and `field_file` are self-contained
+(see the example above) and are parsed as before; both paths are then `None`.
+
+The geometry and field folders are installed next to `scenarios/` but are
+not scenario folders: tools that list scenarios (e.g. `plot_fields.py --list`)
+only search `scenarios/`.
 
 The loader is `scalar_field_sim.config.load_field_sim_config`, which is also
-used by the field server and visualization nodes, so these scenarios work with
-the existing launch files.
+used by the field server and visualization nodes, so both forms work with the
+existing launch files.
+
+The `scenario_path` parameter of the nodes (and the `scenario_path` launch
+argument) is used as given if it is absolute; a relative path is resolved
+against the installed `share/scalar_field_sim` directory, e.g.
+`scenario_path:=scenarios/tests/fields/01_single_wall.toml`
+(`scalar_field_sim.config.resolve_package_path`). The nodes log the resolved
+path. The `scalar_field_belief` nodes resolve their `scenario_path` and
+`belief_geometry` with the same rule. `plot_fields.py` has its own lookup (see
+below).
 
 ### Plotting scenarios
 

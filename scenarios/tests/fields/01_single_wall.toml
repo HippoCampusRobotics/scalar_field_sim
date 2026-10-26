@@ -1,8 +1,6 @@
-field_file = "general_params.toml"
+geometry_file = "../../../geometry/tank_2x4_single_wall.toml"
+field_file = "../../../fields/test_four_sources.toml"
 
 [general]
 name = "01_single_wall"
 description = "One finite wall at x = 1 m from y = 0.4 m to y = 3.6 m."
-
-[objects.walls]
-wall_vertices = [[1.0, 0.4, 1.0, 3.6]]

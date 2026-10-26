@@ -1,8 +1,6 @@
-field_file = "general_params.toml"
+geometry_file = "../../../geometry/tank_2x4_wall_with_gap.toml"
+field_file = "../../../fields/test_four_sources.toml"
 
 [general]
 name = "02_wall_with_gap"
 description = "Wall at x = 1 m from y = 0.4 m to 3.6 m with an opening between y = 1.75 m and 2.25 m."
-
-[objects.walls]
-wall_vertices = [[1.0, 0.4, 1.0, 1.75], [1.0, 2.25, 1.0, 3.6]]

@@ -58,7 +58,7 @@ install(PROGRAMS
 )
 
 install(
-  DIRECTORY launch scenarios config
+  DIRECTORY launch scenarios config geometry fields
   DESTINATION share/${PROJECT_NAME}
 )
 

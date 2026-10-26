@@ -1,46 +1,53 @@
-# Shared-parameter test fields
+# Test fields
 
 Manually inspectable field scenarios for later belief/planning evaluation.
-All three share the same field parameters; only the walls differ.
+All four use the same field file; only the geometry differs.
 
-| File | Content |
-|---|---|
-| `general_params.toml` | Shared frame, units, bounds, hidden sources, source parameters, simulation and visualization settings |
-| `00_open.toml` | No internal walls |
-| `01_single_wall.toml` | Wall at x = 1 m, y = 0.4 to 3.6 m |
-| `02_wall_with_gap.toml` | Same wall with an opening for y = 1.75 to 2.25 m |
+| File | Geometry file | Content |
+|---|---|---|
+| `00_open.toml` | `geometry/tank_2x4_open.toml` | No internal walls |
+| `01_single_wall.toml` | `geometry/tank_2x4_single_wall.toml` | Wall at x = 1 m, y = 0.4 to 3.6 m |
+| `02_wall_with_gap.toml` | `geometry/tank_2x4_wall_with_gap.toml` | Same wall with an opening for y = 1.75 to 2.25 m |
+| `03_better_wall.toml` | `geometry/tank_2x4_two_walls.toml` | Wall at x = 1 m, y = 0.6 to 3.4 m, and a wall at y = 2.1 m, x = 1 to 1.5 m (scenario name `simple_wall_case`) |
+
+The field file `fields/test_four_sources.toml` defines the units, hidden
+sources, source parameters, simulation and visualization settings. Geometry
+and field files are in the package folders `geometry/` and `fields/`.
 
 ## Schema
 
-A scenario file references the shared file with a top-level key:
+Each scenario references one geometry file and one field file:
 
 ```toml
-field_file = "general_params.toml"
+geometry_file = "../../../geometry/tank_2x4_single_wall.toml"
+field_file = "../../../fields/test_four_sources.toml"
 
 [general]
 name = "01_single_wall"
 description = "..."
-
-[objects.walls]
-wall_vertices = [[1.0, 0.4, 1.0, 3.6]]  # [x1, y1, x2, y2] per segment
 ```
 
-- The reference is resolved relative to the scenario file's directory
+- References are resolved relative to the scenario file's directory
   (independent of the working directory); absolute paths are allowed.
-- With `field_file`, the scenario may contain only `field_file`, `[general]`,
-  and `[objects.walls]`. The shared file must not contain `field_file`,
-  `[general]`, or `[objects.walls]`. Any overlap raises a `ValueError`
-  naming the conflicting keys and both files. There are no overrides.
-- Only one level of reference is supported; a nested or self-referencing
-  `field_file` raises a `ValueError`.
-- A missing shared file raises `FileNotFoundError`; invalid TOML in the
-  shared file raises a `ValueError` naming the shared file.
-- Scenario files without `field_file` are parsed exactly as before.
+- The scenario may contain only `geometry_file`, `field_file`, and
+  `[general]`. The geometry file may only contain `[general]`, `[frame]`,
+  `[bounds]`, `[objects.walls]`, and `[units] length`; the field file only
+  `[units]`, `[objects.sources]`, `[simulation]`, and `[visualization]`.
+  Other keys raise a `ValueError` naming the keys and files. There are no
+  overrides.
+- Both references are required. Referenced files must not reference other
+  files; a nested reference raises a `ValueError`.
+- A missing referenced file raises `FileNotFoundError`; invalid TOML in a
+  referenced file raises a `ValueError` naming that file.
 
-The loader is `scalar_field_sim.config.load_field_sim_config`. The field
-server and visualization nodes use the same loader, so these files also work
-with the existing launch files, e.g.
-`ros2 launch scalar_field_sim field_sim.launch.py scenario_path:=<absolute path to 01_single_wall.toml>`.
+The full description is in "Geometry, field, and scenario files" of the
+package `readme.md`. The loader is
+`scalar_field_sim.config.load_field_sim_config`. The field server and
+visualization nodes use the same loader, so these files also work with the
+existing launch files, e.g.
+`ros2 launch scalar_field_sim field_sim.launch.py scenario_path:=scenarios/tests/fields/01_single_wall.toml`
+(relative paths are resolved against the installed `share/scalar_field_sim`
+directory).
 
 ## Units and frame
 
@@ -87,8 +94,8 @@ Plot the noiseless fields with the package tool (see "Plotting scenarios" in
 the package `readme.md`), e.g.
 
 ```bash
-# all three fields in one window (shared color scale)
-ros2 run scalar_field_sim plot_fields.py 00_open 01_single_wall 02_wall_with_gap
+# all four fields in one window (shared color scale)
+ros2 run scalar_field_sim plot_fields.py 00_open 01_single_wall 02_wall_with_gap 03_better_wall
 
 # one field, coarser grid, also saved as PNG
 ros2 run scalar_field_sim plot_fields.py tests/fields/01_single_wall \
@@ -102,8 +109,10 @@ tool exits with an error.
 
 - Robot collision obstacles in `ipp` (`ipp/nodes/obstacle_publisher.py`,
   reads `ipp/config/<scenario>.yaml`) are a separate representation.
-- Wall files of `scalar_field_belief` (`config/walls/*.toml`) are separate
-  and need inline `[bounds]`; they cannot reference `field_file`.
+- The belief geometry is chosen independently of the simulated field: with
+  `belief_geometry: scenario`, the `scalar_field_belief` nodes read the walls
+  and bounds of the geometry file referenced by `scenario_path`; otherwise
+  they read the geometry or scenario file given in `belief_geometry`.
 - No Gazebo world geometry is generated from these files.
 
 A matching plot does not imply matching collision or belief geometry.
